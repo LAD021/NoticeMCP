@@ -25,7 +25,7 @@ class SimpleMCPServer {
           properties: {
             title: { type: 'string', description: '通知标题' },
             message: { type: 'string', description: '通知内容' },
-            backend: { type: 'string', enum: ['email', 'webhook', 'slack'], description: '通知后端类型' },
+            backend: { type: 'string', enum: ['email', 'webhook', 'slack', 'macos'], description: '通知后端类型' },
             config: { type: 'object', description: '后端特定配置' }
           },
           required: ['title', 'message', 'backend']
@@ -84,12 +84,13 @@ class SimpleMCPServer {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              backends: ['email', 'webhook', 'slack'],
-              count: 3,
+              backends: ['email', 'webhook', 'slack', 'macos'],
+              count: 4,
               descriptions: {
                 email: '邮件通知后端 - 通过SMTP发送邮件',
                 webhook: 'Webhook通知后端 - 发送HTTP请求到指定URL',
-                slack: 'Slack通知后端 - 通过Webhook发送Slack消息'
+                slack: 'Slack通知后端 - 通过Webhook发送Slack消息',
+                macos: 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知'
               }
             }, null, 2)
           }]
@@ -115,6 +116,9 @@ class SimpleMCPServer {
           break;
         case 'slack':
           result = await this.sendSlack(title, message, config);
+          break;
+        case 'macos':
+          result = await this.sendMacOS(title, message, config);
           break;
         default:
           throw new Error(`不支持的后端: ${backend}`);
@@ -247,6 +251,53 @@ class SimpleMCPServer {
       throw new Error(`Slack发送失败: ${error.message}`);
     }
   }
+
+  async sendMacOS(title, message, config = {}) {
+    try {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+      
+      // 转义字符串中的特殊字符
+      const escapeString = (str) => {
+        return str
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"')
+          .replace(/'/g, "\\'") 
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
+      };
+      
+      // 构建 osascript 命令
+      let script = `display notification "${escapeString(message)}" with title "${escapeString(title)}"`;
+      
+      // 添加可选参数
+      if (config.subtitle) {
+        script += ` subtitle "${escapeString(config.subtitle)}"`;
+      }
+      
+      if (config.sound) {
+        script += ` sound name "${escapeString(config.sound)}"`;
+      }
+      
+      // 执行 osascript 命令
+      const command = `osascript -e '${script}'`;
+      
+      console.log(`[MacOS通知] 执行命令: ${command}`);
+      
+      await execAsync(command);
+      
+      return {
+        messageId: `macos-${Date.now()}`,
+        platform: 'macos',
+        sound: config.sound || 'default'
+      };
+      
+    } catch (error) {
+      throw new Error(`MacOS通知发送失败: ${error.message}`);
+    }
+  }
 }
 
 // STDIO MCP 协议处理
@@ -315,9 +366,10 @@ function startServer() {
   const server = new SimpleMCPServer();
   const transport = new StdioMCPTransport(server);
   
+  console.error('🚀 Notice MCP Server 启动中...');
   console.error('✅ Notice MCP Server 已启动，等待连接...');
   console.error('📋 可用工具: send_notification, get_backends');
-  console.error('🔧 支持后端: email, webhook, slack');
+  console.error('🔧 支持后端: email, webhook, slack, macos');
 }
 
 // 如果直接运行此脚本

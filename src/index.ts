@@ -19,14 +19,13 @@ declare const console: {
   error(...args: any[]): void;
 };
 
-declare namespace import {
-  interface ImportMeta {
-    url: string;
-  }
+// 简单的模块元数据对象
+interface ImportMeta {
+  url: string;
 }
 
 declare const import: {
-  meta: import.ImportMeta;
+  meta: ImportMeta;
 };
 
 // 简单的验证函数
@@ -235,6 +234,51 @@ class SlackBackend implements NotificationBackend {
 }
 
 // 通知管理器
+// MacOS后端实现（简化版）
+class MacOSBackend implements NotificationBackend {
+  getDescription(): string {
+    return 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知';
+  }
+
+  getRequiredConfig(): string[] {
+    return []; // 无必需配置
+  }
+
+  validateConfig(config: Record<string, any>): boolean {
+    return true; // MacOS通知无特殊配置要求
+  }
+
+  async send(title: string, message: string, config?: Record<string, any>): Promise<Partial<NotificationResult>> {
+    try {
+      // 模拟MacOS通知发送
+      console.error(`[MACOS] 系统通知`);
+      console.error(`[MACOS] 标题: ${title}`);
+      console.error(`[MACOS] 内容: ${message}`);
+      
+      if (config?.subtitle) {
+        console.error(`[MACOS] 副标题: ${config.subtitle}`);
+      }
+      
+      if (config?.sound) {
+        console.error(`[MACOS] 声音: ${config.sound}`);
+      }
+      
+      return {
+        messageId: `macos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        metadata: {
+          title,
+          message,
+          subtitle: config?.subtitle,
+          sound: config?.sound || 'default',
+          platform: 'macOS'
+        }
+      };
+    } catch (error: any) {
+      throw new Error(`MacOS通知发送失败: ${error.message}`);
+    }
+  }
+}
+
 class NotificationManager {
   private backends: Map<string, NotificationBackend> = new Map();
 
@@ -285,7 +329,7 @@ function validateSendNotification(args: any): {
 } {
   const title = validateString(args.title, 'title');
   const message = validateString(args.message, 'message');
-  const backend = validateEnum(args.backend, ['email', 'webhook', 'slack'], 'backend');
+  const backend = validateEnum(args.backend, ['email', 'webhook', 'slack', 'macos'], 'backend');
   return { title, message, backend, config: args.config };
 }
 
@@ -322,6 +366,7 @@ class NoticeMCPServer {
     this.notificationManager.registerBackend('email', new EmailBackend());
     this.notificationManager.registerBackend('webhook', new WebhookBackend());
     this.notificationManager.registerBackend('slack', new SlackBackend());
+    this.notificationManager.registerBackend('macos', new MacOSBackend());
   }
 
   private setupStdio() {
@@ -416,10 +461,10 @@ class NoticeMCPServer {
                     description: '通知内容'
                   },
                   backend: {
-                    type: 'string',
-                    enum: ['email', 'webhook', 'slack'],
-                    description: '通知后端类型'
-                  },
+                     type: 'string',
+                     enum: ['email', 'webhook', 'slack', 'macos'],
+                     description: '通知后端类型'
+                   },
                   config: {
                     type: 'object',
                     description: '后端特定配置',
@@ -486,10 +531,11 @@ class NoticeMCPServer {
                   backends,
                   count: backends.length,
                   descriptions: {
-                    email: '邮件通知后端 - 通过SMTP发送邮件',
-                    webhook: 'Webhook通知后端 - 发送HTTP请求到指定URL',
-                    slack: 'Slack通知后端 - 通过Webhook发送Slack消息'
-                  }
+                     email: '邮件通知后端 - 通过SMTP发送邮件',
+                     webhook: 'Webhook通知后端 - 发送HTTP请求到指定URL',
+                     slack: 'Slack通知后端 - 通过Webhook发送Slack消息',
+                     macos: 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知'
+                   }
                 }, null, 2)
               }
             ]
@@ -528,4 +574,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   server.run();
 }
 
-export { NoticeMCPServer, NotificationManager, EmailBackend, WebhookBackend, SlackBackend };
+export { NoticeMCPServer, NotificationManager, EmailBackend, WebhookBackend, SlackBackend, MacOSBackend };
