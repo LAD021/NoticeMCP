@@ -1,6 +1,8 @@
 # Notice MCP Server
 
-一个用于发送通知的 Model Context Protocol (MCP) 服务器，支持多种通知后端，可在大模型任务完成时发送通知。
+一个专为 AI 助手设计的 Model Context Protocol (MCP) 通知服务器，让 AI 能够主动向用户发送任务完成、错误提醒和状态更新等重要通知。
+
+> 🤖 **专为 AI 助手设计**：详细了解如何让 AI 助手使用此工具，请参阅 [AI 助手使用指南](./AI_ASSISTANT_GUIDE.md)
 
 ## 功能特性
 
@@ -305,6 +307,32 @@ src/
 ```bash
 npm test
 ```
+
+## 🤖 AI 助手集成
+
+### 核心价值
+Notice MCP Server 专为 AI 助手设计，让 AI 能够：
+- ✅ 主动通知任务完成状态
+- ❌ 及时报告错误和异常
+- 📊 发送进度更新和状态信息
+- ⚠️ 提供重要提醒和警告
+
+### 使用场景
+- **长时间任务**：代码编译、数据处理、文件上传等
+- **错误处理**：权限问题、网络异常、资源不足等
+- **状态监控**：服务器状态、任务进度、系统警告等
+
+### 快速开始
+1. 配置 Trae/Claude Desktop MCP 设置
+2. AI 助手自动获得 `send_notification` 工具
+3. AI 在适当时机调用通知功能
+
+## 📚 相关文档
+
+- [AI 助手使用指南](./AI_ASSISTANT_GUIDE.md) - 详细的 AI 集成说明
+- [Trae 配置指南](./CLAUDE_DESKTOP_SETUP.md) - Trae/Claude Desktop 配置
+- [TOML 配置指南](./TOML_CONFIG_GUIDE.md) - 配置文件详解
+- [部署指南](./DEPLOYMENT.md) - 生产环境部署
 
 ## 许可证
 
