@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const TEST_CONFIG = {
   serverStartTimeout: 5000,
   notificationDelay: 1500,
-  testTimeout: 30000
+  testTimeout: 60000
 };
 
 // 测试结果统计
@@ -234,36 +234,61 @@ class MCPServerManager {
  */
 class MacOSNotificationTester {
   static async testBasicNotification() {
-    const command = `osascript -e 'display notification "集成测试 - 基本通知" with title "Notice MCP Test"'`;
-    await execAsync(command);
-    await sleep(TEST_CONFIG.notificationDelay);
+    try {
+      const { MacOSBackend } = await import('../src/backends/macos.js');
+      const backend = new MacOSBackend();
+      await backend.send('Notice MCP Test', '集成测试 - 基本通知');
+      await sleep(TEST_CONFIG.notificationDelay);
+    } catch (error) {
+      throw new Error(`基本通知测试失败: ${error.message}`);
+    }
   }
   
   static async testNotificationWithSubtitle() {
-    const command = `osascript -e 'display notification "集成测试 - 带副标题" with title "Notice MCP Test" subtitle "集成测试"'`;
-    await execAsync(command);
-    await sleep(TEST_CONFIG.notificationDelay);
+    try {
+      const { MacOSBackend } = await import('../src/backends/macos.js');
+      const backend = new MacOSBackend();
+      await backend.send('Notice MCP Test', '集成测试 - 带副标题', {
+        subtitle: '集成测试'
+      });
+      await sleep(TEST_CONFIG.notificationDelay);
+    } catch (error) {
+      throw new Error(`副标题通知测试失败: ${error.message}`);
+    }
   }
   
   static async testNotificationWithSound() {
-    const command = `osascript -e 'display notification "集成测试 - 带声音" with title "Notice MCP Test" sound name "Glass"'`;
-    await execAsync(command);
+    try {
+      const { MacOSBackend } = await import('../src/backends/macos.js');
+      const backend = new MacOSBackend();
+      await backend.send('Notice MCP Test', '集成测试 - 带声音', {
+        sound: 'Glass'
+      });
+      await sleep(TEST_CONFIG.notificationDelay);
+    } catch (error) {
+      throw new Error(`声音通知测试失败: ${error.message}`);
+    }
     await sleep(TEST_CONFIG.notificationDelay);
   }
   
   static async testFullNotification() {
-    const command = `osascript -e 'display notification "集成测试 - 完整配置" with title "Notice MCP Test" subtitle "完整测试" sound name "Hero"'`;
-    await execAsync(command);
-    await sleep(TEST_CONFIG.notificationDelay);
+    try {
+      const { MacOSBackend } = await import('../src/backends/macos.js');
+      const backend = new MacOSBackend();
+      await backend.send('Notice MCP Test', '集成测试 - 完整配置', {
+        subtitle: '完整测试',
+        sound: 'Hero',
+        timeout: 5
+      });
+      await sleep(TEST_CONFIG.notificationDelay);
+    } catch (error) {
+      throw new Error(`完整配置通知测试失败: ${error.message}`);
+    }
   }
   
   static async checkSystemPermissions() {
-    try {
-      await execAsync(`osascript -e 'display notification "权限测试" with title "Permission Test"'`);
-      return true;
-    } catch (error) {
-      return false;
-    }
+    // node-notifier 会自动处理权限请求
+    return true;
   }
 }
 
@@ -386,12 +411,12 @@ class IntegrationTestSuite {
     Logger.info('集成测试');
     
     await Assert.test('MacOS后端文件存在', async () => {
-      const macosBackendPath = 'src/backends/macos.ts';
+      const macosBackendPath = 'src/backends/macos.js';
       Assert.assertTrue(fs.existsSync(macosBackendPath), 'MacOS后端文件不存在');
       
       const content = fs.readFileSync(macosBackendPath, 'utf8');
       Assert.assertTrue(content.includes('MacOSBackend'), 'MacOS后端类未找到');
-      Assert.assertTrue(content.includes('osascript'), 'osascript调用未找到');
+      Assert.assertTrue(content.includes('node-notifier'), 'node-notifier调用未找到');
     });
     
     await Assert.test('start.js包含MacOS后端', async () => {

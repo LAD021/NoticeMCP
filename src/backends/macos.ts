@@ -4,35 +4,28 @@ import { NotificationBackend, NotificationResult } from '../notification/types';
 // Node.js类型声明
 declare const require: (id: string) => any;
 
-// 动态导入Node.js模块
-const childProcess = (() => {
+// 动态导入node-notifier模块
+const notifier = (() => {
   try {
-    return require('child_process');
+    return require('node-notifier');
   } catch {
     return null;
   }
 })();
-
-const util = (() => {
-  try {
-    return require('util');
-  } catch {
-    return null;
-  }
-})();
-
-const execAsync = util ? util.promisify(childProcess?.exec) : null;
 
 export interface MacOSConfig {
-  sound?: string; // 通知声音，如 'default', 'Glass', 'Hero', 'Ping' 等
+  sound?: string; // 通知声音，如 'Bottle', 'Blow', 'Frog', 'Funk', 'Glass', 'Hero', 'Morse', 'Ping', 'Pop', 'Purr', 'Sosumi', 'Submarine', 'Tink' 等
   subtitle?: string; // 副标题
   timeout?: number; // 超时时间（秒）
   appIcon?: string; // 应用图标路径
+  contentImage?: string; // 内容图片路径
+  open?: string; // 点击通知时打开的URL或应用
+  wait?: boolean; // 是否等待用户交互
 }
 
 export class MacOSBackend implements NotificationBackend {
   getDescription(): string {
-    return 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知';
+    return 'Mac系统通知后端 - 使用node-notifier发送桌面通知';
   }
 
   getRequiredConfig(): string[] {
@@ -53,8 +46,8 @@ export class MacOSBackend implements NotificationBackend {
       throw new Error('subtitle 必须是字符串类型');
     }
     
-    if (macConfig.timeout && (typeof macConfig.timeout !== 'number' || macConfig.timeout <= 0)) {
-      throw new Error('timeout 必须是正数');
+    if (macConfig.timeout && typeof macConfig.timeout !== 'number') {
+      throw new Error('timeout 必须是数字类型');
     }
     
     if (macConfig.appIcon && typeof macConfig.appIcon !== 'string') {
@@ -66,30 +59,51 @@ export class MacOSBackend implements NotificationBackend {
 
   async send(title: string, message: string, config?: Record<string, any>): Promise<NotificationResult> {
     try {
-      if (!execAsync) {
-        throw new Error('execAsync not available - Node.js child_process module required');
+      if (!notifier) {
+        throw new Error('node-notifier not available - please install node-notifier package');
       }
       
       const macConfig = (config as MacOSConfig) || {};
       
-      // 构建 osascript 命令
-      let script = `display notification "${this.escapeString(message)}" with title "${this.escapeString(title)}"`;
+      // 构建 node-notifier 选项
+      const notificationOptions: any = {
+        title: title,
+        message: message,
+        sound: macConfig.sound || true, // true 表示使用默认声音
+        wait: macConfig.wait || false,
+        timeout: macConfig.timeout || 5
+      };
       
       // 添加可选参数
       if (macConfig.subtitle) {
-        script += ` subtitle "${this.escapeString(macConfig.subtitle)}"`;
+        notificationOptions.subtitle = macConfig.subtitle;
       }
       
-      if (macConfig.sound) {
-        script += ` sound name "${this.escapeString(macConfig.sound)}"`;
+      if (macConfig.appIcon) {
+        notificationOptions.appIcon = macConfig.appIcon;
       }
       
-      // 执行 osascript 命令
-      const command = `osascript -e '${script}'`;
+      if (macConfig.contentImage) {
+        notificationOptions.contentImage = macConfig.contentImage;
+      }
       
-      console.log(`[MacOS通知] 执行命令: ${command}`);
+      if (macConfig.open) {
+        notificationOptions.open = macConfig.open;
+      }
       
-      await execAsync(command);
+      console.log(`[MacOS通知] 发送通知:`, notificationOptions);
+      
+      // 使用 Promise 包装 node-notifier 的回调
+      await new Promise<void>((resolve, reject) => {
+        notifier.notify(notificationOptions, (err: any, response: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            console.log(`[MacOS通知] 通知响应:`, response);
+            resolve();
+          }
+        });
+      });
       
       return {
         success: true,
@@ -100,7 +114,8 @@ export class MacOSBackend implements NotificationBackend {
           title,
           message,
           subtitle: macConfig.subtitle,
-          sound: macConfig.sound || 'default'
+          sound: macConfig.sound || 'default',
+          timeout: macConfig.timeout || 5
         }
       };
       
@@ -118,32 +133,14 @@ export class MacOSBackend implements NotificationBackend {
   }
 
   /**
-   * 转义字符串中的特殊字符，防止AppleScript注入
-   */
-  private escapeString(str: string): string {
-    return str
-      .replace(/\\/g, '\\\\')  // 转义反斜杠
-      .replace(/"/g, '\\"')     // 转义双引号
-      .replace(/'/g, "\\'")     // 转义单引号
-      .replace(/\n/g, '\\n')    // 转义换行符
-      .replace(/\r/g, '\\r')    // 转义回车符
-      .replace(/\t/g, '\\t');   // 转义制表符
-  }
-
-  /**
    * 获取可用的系统声音列表
    */
-  static async getAvailableSounds(): Promise<string[]> {
-    try {
-      if (!execAsync) {
-        throw new Error('execAsync not available');
-      }
-      const { stdout } = await execAsync('ls /System/Library/Sounds/*.aiff | xargs -I {} basename {} .aiff');
-      return stdout.trim().split('\n').filter((sound: string) => sound.length > 0);
-    } catch (error) {
-      console.warn('[MacOS通知] 无法获取系统声音列表:', error);
-      return ['default', 'Glass', 'Hero', 'Ping', 'Pop', 'Purr', 'Sosumi', 'Submarine', 'Blow', 'Bottle', 'Frog', 'Funk', 'Morse', 'Tink'];
-    }
+  static getAvailableSounds(): string[] {
+    // node-notifier 支持的 macOS 系统声音
+    return [
+      'Bottle', 'Blow', 'Frog', 'Funk', 'Glass', 'Hero', 
+      'Morse', 'Ping', 'Pop', 'Purr', 'Sosumi', 'Submarine', 'Tink'
+    ];
   }
 
   /**
@@ -155,51 +152,44 @@ export class MacOSBackend implements NotificationBackend {
     subtitle?: string;
     sound?: string;
     timeout?: number;
+    appIcon?: string;
+    contentImage?: string;
+    open?: string;
   }): { title: string; message: string; config: MacOSConfig } {
     return {
       title: options.title,
       message: options.message,
       config: {
         subtitle: options.subtitle,
-        sound: options.sound || 'default',
-        timeout: options.timeout || 5
+        sound: options.sound || 'Ping',
+        timeout: options.timeout || 5,
+        appIcon: options.appIcon,
+        contentImage: options.contentImage,
+        open: options.open
       }
     };
   }
 
   /**
-   * 发送带有操作按钮的通知（需要更高权限）
+   * 创建等待用户交互的通知
    */
-  static async sendActionableNotification(options: {
+  static createInteractiveNotification(options: {
     title: string;
     message: string;
-    buttons: string[];
-    defaultButton?: string;
-  }): Promise<{ success: boolean; buttonClicked?: string; error?: string }> {
-    try {
-      if (!execAsync) {
-        throw new Error('execAsync not available');
+    subtitle?: string;
+    sound?: string;
+    open?: string;
+  }): { title: string; message: string; config: MacOSConfig } {
+    return {
+      title: options.title,
+      message: options.message,
+      config: {
+        subtitle: options.subtitle,
+        sound: options.sound || 'Ping',
+        wait: true,
+        open: options.open
       }
-      
-      const buttons = options.buttons.map(btn => `"${btn}"`).join(', ');
-      const defaultButton = options.defaultButton || options.buttons[0];
-      
-      const script = `display dialog "${options.message}" with title "${options.title}" buttons {${buttons}} default button "${defaultButton}"`;
-      const command = `osascript -e '${script}'`;
-      
-      const { stdout } = await execAsync(command);
-      const buttonClicked = stdout.match(/button returned:(.+)/)?.[1]?.trim();
-      
-      return {
-        success: true,
-        buttonClicked: buttonClicked || defaultButton
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+    };
   }
 }
 

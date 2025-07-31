@@ -281,44 +281,60 @@ class SimpleMCPServer {
 
   async sendMacOS(title, message, config = {}) {
     try {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
+      // 动态导入 node-notifier
+      let notifier;
+      try {
+        const nodeNotifierModule = await import('node-notifier');
+        notifier = nodeNotifierModule.default;
+      } catch (importError) {
+        throw new Error('node-notifier not available - please install node-notifier package');
+      }
       
-      // 转义字符串中的特殊字符
-      const escapeString = (str) => {
-        return str
-          .replace(/\\/g, '\\\\')
-          .replace(/"/g, '\\"')
-          .replace(/'/g, "\\'") 
-          .replace(/\n/g, '\\n')
-          .replace(/\r/g, '\\r')
-          .replace(/\t/g, '\\t');
+      // 构建 node-notifier 选项
+      const notificationOptions = {
+        title: title,
+        message: message,
+        sound: config.sound || true, // true 表示使用默认声音
+        wait: config.wait || false,
+        timeout: config.timeout || 5
       };
-      
-      // 构建 osascript 命令
-      let script = `display notification "${escapeString(message)}" with title "${escapeString(title)}"`;
       
       // 添加可选参数
       if (config.subtitle) {
-        script += ` subtitle "${escapeString(config.subtitle)}"`;
+        notificationOptions.subtitle = config.subtitle;
       }
       
-      if (config.sound) {
-        script += ` sound name "${escapeString(config.sound)}"`;
+      if (config.appIcon) {
+        notificationOptions.appIcon = config.appIcon;
       }
       
-      // 执行 osascript 命令
-      const command = `osascript -e '${script}'`;
+      if (config.contentImage) {
+        notificationOptions.contentImage = config.contentImage;
+      }
       
-      console.log(`[MacOS通知] 执行命令: ${command}`);
+      if (config.open) {
+        notificationOptions.open = config.open;
+      }
       
-      await execAsync(command);
+      console.log(`[MacOS通知] 发送通知:`, notificationOptions);
+      
+      // 使用 Promise 包装 node-notifier 的回调
+      await new Promise((resolve, reject) => {
+        notifier.notify(notificationOptions, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            console.log(`[MacOS通知] 通知响应:`, response);
+            resolve();
+          }
+        });
+      });
       
       return {
         messageId: `macos-${Date.now()}`,
         platform: 'macos',
-        sound: config.sound || 'default'
+        sound: config.sound || 'default',
+        timeout: config.timeout || 5
       };
       
     } catch (error) {
