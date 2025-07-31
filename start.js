@@ -13,9 +13,27 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// 配置管理器全局变量
+let configManager = null;
+
+// 异步加载配置
+async function loadConfig() {
+  try {
+    const { ConfigManager } = await import('./src/config/manager.js');
+    configManager = new ConfigManager();
+    await configManager.loadConfig();
+    console.error('📋 配置文件已加载:', configManager.getConfigSummary());
+    return configManager;
+  } catch (error) {
+    console.error('⚠️  配置文件加载失败，使用默认配置:', error.message);
+    return null;
+  }
+}
+
 // 简化的MCP协议处理
 class SimpleMCPServer {
-  constructor() {
+  constructor(configManager = null) {
+    this.configManager = configManager;
     this.tools = [
       {
         name: 'send_notification',
@@ -104,21 +122,30 @@ class SimpleMCPServer {
   async sendNotification(args) {
     const { title, message, backend, config = {} } = args;
     
+    // 合并配置文件中的配置
+    let finalConfig = { ...config };
+    if (this.configManager) {
+      const backendConfig = this.configManager.getBackendConfig(backend);
+      if (backendConfig) {
+        finalConfig = { ...backendConfig, ...config };
+      }
+    }
+    
     try {
       let result;
       
       switch (backend) {
         case 'email':
-          result = await this.sendEmail(title, message, config);
+          result = await this.sendEmail(title, message, finalConfig);
           break;
         case 'webhook':
-          result = await this.sendWebhook(title, message, config);
+          result = await this.sendWebhook(title, message, finalConfig);
           break;
         case 'slack':
-          result = await this.sendSlack(title, message, config);
+          result = await this.sendSlack(title, message, finalConfig);
           break;
         case 'macos':
-          result = await this.sendMacOS(title, message, config);
+          result = await this.sendMacOS(title, message, finalConfig);
           break;
         default:
           throw new Error(`不支持的后端: ${backend}`);
@@ -360,16 +387,24 @@ class StdioMCPTransport {
 }
 
 // 启动服务器
-function startServer() {
+async function startServer() {
   console.error('🚀 Notice MCP Server 启动中...');
   
-  const server = new SimpleMCPServer();
+  // 加载配置
+  const config = await loadConfig();
+  
+  const server = new SimpleMCPServer(config);
   const transport = new StdioMCPTransport(server);
   
-  console.error('🚀 Notice MCP Server 启动中...');
   console.error('✅ Notice MCP Server 已启动，等待连接...');
   console.error('📋 可用工具: send_notification, get_backends');
   console.error('🔧 支持后端: email, webhook, slack, macos');
+  
+  if (config) {
+    console.error('⚙️  使用TOML配置文件');
+  } else {
+    console.error('⚙️  使用默认配置');
+  }
 }
 
 // 如果直接运行此脚本

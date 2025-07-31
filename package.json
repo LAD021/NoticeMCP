@@ -10,7 +10,9 @@
     "dev": "tsx src/index.ts",
     "test": "node tests/integration.test.js",
     "test:macos": "node test-macos.js",
-    "test:integration": "./run-tests.sh"
+    "test:integration": "./run-tests.sh",
+    "test:config": "node test-config.js",
+    "config:validate": "node test-config.js"
   },
   "keywords": ["mcp", "notification", "ai", "model", "server"],
   "author": "Your Name",

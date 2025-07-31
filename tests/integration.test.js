@@ -29,6 +29,54 @@ let testResults = {
   errors: []
 };
 
+// TOML配置测试
+async function testTOMLConfig() {
+  Logger.info('TOML配置管理测试');
+  
+  await Assert.test('检查config.toml文件', async () => {
+    const configPath = path.join(process.cwd(), 'config.toml');
+    Assert.assertTrue(fs.existsSync(configPath), 'config.toml文件不存在');
+  });
+  
+  await Assert.test('配置管理器加载', async () => {
+    try {
+      const { ConfigManager } = await import('../src/config/manager.js');
+      const configManager = new ConfigManager();
+      await configManager.loadConfig();
+      Assert.assertNotNull(configManager, '配置管理器创建失败');
+    } catch (error) {
+      throw new Error(`配置管理器加载失败: ${error.message}`);
+    }
+  });
+  
+  await Assert.test('配置摘要获取', async () => {
+    const { ConfigManager } = await import('../src/config/manager.js');
+    const configManager = new ConfigManager();
+    await configManager.loadConfig();
+    const summary = configManager.getConfigSummary();
+    Assert.assertNotNull(summary, '配置摘要获取失败');
+    Assert.assertTrue(summary.includes('backends'), '配置摘要应包含backends信息');
+  });
+  
+  await Assert.test('MacOS后端配置获取', async () => {
+    const { ConfigManager } = await import('../src/config/manager.js');
+    const configManager = new ConfigManager();
+    await configManager.loadConfig();
+    const macosConfig = configManager.getBackendConfig('macos');
+    Assert.assertNotNull(macosConfig, 'MacOS后端配置获取失败');
+    Assert.assertTrue(macosConfig.enabled !== undefined, 'MacOS后端配置应包含enabled字段');
+  });
+  
+  await Assert.test('配置验证功能', async () => {
+    const { ConfigManager } = await import('../src/config/manager.js');
+    const configManager = new ConfigManager();
+    await configManager.loadConfig();
+    const validation = configManager.validateConfig();
+    Assert.assertNotNull(validation, '配置验证结果不应为空');
+    Assert.assertTrue(typeof validation.valid === 'boolean', '配置验证应返回valid字段');
+  });
+}
+
 /**
  * 日志工具
  */
@@ -240,6 +288,9 @@ class IntegrationTestSuite {
       
       // MCP服务器测试
       await this.runMCPServerTests();
+      
+      // TOML配置测试
+      await testTOMLConfig();
       
       // 集成测试
       await this.runIntegrationTests();

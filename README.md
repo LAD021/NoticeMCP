@@ -3,12 +3,14 @@
 一个用于发送通知的 Model Context Protocol (MCP) 服务器，支持多种通知后端，可在大模型任务完成时发送通知。
 
 ## 功能特性
-系统，
+
 - 🚀 支持多种通知后端（邮件、Webhook、Slack、MacOS系统通知）
+- 📋 TOML配置文件管理，支持环境变量映射
 - 🔧 可扩展的后端架构
 - 📝 完整的TypeScript类型支持
 - 🛡️ 输入验证和错误处理
 - 📊 详细的发送结果和元数据
+- ⚙️ 配置热重载和验证功能
 
 ## 支持的通知后端
 
@@ -31,6 +33,61 @@
 - 发送原生MacOS桌面通知
 - 支持标题、副标题和系统声音
 - 无需额外配置，直接使用系统通知中心
+
+## 配置管理
+
+### TOML配置文件
+
+Notice MCP Server 支持使用 TOML 配置文件来管理所有后端配置。在项目根目录创建 `config.toml` 文件：
+
+```toml
+[server]
+name = "Notice MCP Server"
+version = "1.0.0"
+port = 3000
+debug = false
+
+[logging]
+level = "info"
+file = "notice.log"
+enable_console = true
+
+[backends.macos]
+enabled = true
+default_sound = "Glass"
+default_subtitle = "来自 Notice MCP"
+show_in_notification_center = true
+
+[backends.email]
+enabled = true
+default_from = "noreply@yourapp.com"
+default_subject = "通知来自 Notice MCP"
+
+[backends.email.smtp]
+host = "smtp.gmail.com"
+port = 587
+secure = false
+# 敏感信息可通过环境变量设置
+# user = "your-email@gmail.com"
+# pass = "your-app-password"
+
+[templates.success]
+title = "✅ 成功"
+message = "操作已成功完成"
+sound = "Hero"
+```
+
+### 环境变量支持
+
+敏感信息可通过环境变量设置：
+
+```bash
+export EMAIL_USER="your-email@gmail.com"
+export EMAIL_PASS="your-app-password"
+export SLACK_TOKEN="xoxb-your-slack-bot-token"
+```
+
+详细配置说明请参考 [TOML配置指南](./TOML_CONFIG_GUIDE.md)。
 
 ## 安装和使用
 
