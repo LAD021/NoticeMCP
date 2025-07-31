@@ -152,5 +152,6 @@ test-*.js
 *.temp
 
 # Local configuration files
+config.toml
 config.local.toml
 .env.local
