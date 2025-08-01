@@ -323,14 +323,22 @@ Notice MCP Server 专为 AI 助手设计，让 AI 能够：
 - **状态监控**：服务器状态、任务进度、系统警告等
 
 ### 快速开始
-1. 配置 Trae/Claude Desktop MCP 设置
-2. AI 助手自动获得 `send_notification` 工具
-3. AI 在适当时机调用通知功能
+
+**Trae AI 用户：**
+1. 参考 [Trae AI 配置指南](./TRAE_SETUP.md) 配置 MCP 设置
+2. 重启 Trae AI
+3. AI 助手自动获得 `send_notification` 工具
+
+**Claude Desktop 用户：**
+1. 参考 [Claude Desktop 配置指南](./CLAUDE_DESKTOP_SETUP.md) 配置 MCP 设置
+2. 重启 Claude Desktop
+3. AI 助手自动获得 `send_notification` 工具
 
 ## 📚 相关文档
 
 - [AI 助手使用指南](./AI_ASSISTANT_GUIDE.md) - 详细的 AI 集成说明
-- [Trae 配置指南](./CLAUDE_DESKTOP_SETUP.md) - Trae/Claude Desktop 配置
+- [Trae AI 配置指南](./TRAE_SETUP.md) - Trae AI MCP 配置
+- [Claude Desktop 配置指南](./CLAUDE_DESKTOP_SETUP.md) - Claude Desktop MCP 配置
 - [TOML 配置指南](./TOML_CONFIG_GUIDE.md) - 配置文件详解
 - [部署指南](./DEPLOYMENT.md) - 生产环境部署
 

@@ -17,7 +17,7 @@ async function testConfigManager() {
   
   try {
     // 导入配置管理器
-    const { ConfigManager } = await import('./src/config/manager.js');
+    const { ConfigManager } = await import('../../src/config/manager.js');
     
     console.log('✅ 配置管理器导入成功');
     
@@ -81,10 +81,10 @@ async function testMCPIntegration() {
   
   try {
     // 导入MCP服务器
-    const { SimpleMCPServer } = await import('./start.js');
+    const { SimpleMCPServer } = await import('../../start.js');
     
     // 导入配置管理器
-    const { ConfigManager } = await import('./src/config/manager.js');
+    const { ConfigManager } = await import('../../src/config/manager.js');
     const configManager = new ConfigManager();
     await configManager.loadConfig();
     

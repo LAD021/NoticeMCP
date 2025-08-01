@@ -144,7 +144,7 @@ ehthumbs.db
 Thumbs.db
 
 # Test files
-test-*.js
+# 测试文件现在都在 tests/ 目录下
 !tests/
 
 # Temporary files

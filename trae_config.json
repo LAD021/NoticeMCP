@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "notice-mcp": {
+      "command": "node",
+      "args": [
+        "/Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
