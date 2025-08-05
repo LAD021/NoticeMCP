@@ -376,8 +376,9 @@ class StdioMCPTransport {
   }
 
   async handleMessage(message) {
+    let request = null;
     try {
-      const request = JSON.parse(message);
+      request = JSON.parse(message);
       const response = await this.server.handleRequest(request);
       
       const jsonResponse = {
