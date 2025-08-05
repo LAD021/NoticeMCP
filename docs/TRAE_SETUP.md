@@ -142,7 +142,20 @@ copy trae_config.json "%APPDATA%\Trae\"
 
 ## 🔧 故障排除
 
-### 1. 服务器无法启动
+### 1. MCP 连接错误 "ReferenceError: request is not defined"
+
+**✅ 已修复**：此问题已在最新版本中解决。如果仍遇到此错误：
+
+```bash
+# 确保使用最新版本
+cd /Users/bbaa/WORK2025/mysmall/NoticeMCP
+git pull origin main  # 如果使用 Git
+
+# 重启 MCP 服务器
+node start.js
+```
+
+### 2. 服务器无法启动
 
 检查路径是否正确：
 ```bash
@@ -153,21 +166,21 @@ ls -la /Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js
 node /Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js
 ```
 
-### 2. 权限问题
+### 3. 权限问题
 
 确保文件有执行权限：
 ```bash
 chmod +x /Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js
 ```
 
-### 3. Node.js版本
+### 4. Node.js版本
 
 确保使用Node.js 18+：
 ```bash
 node --version
 ```
 
-### 4. 依赖问题
+### 5. 依赖问题
 
 重新安装依赖：
 ```bash

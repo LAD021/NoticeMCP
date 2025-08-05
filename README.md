@@ -13,6 +13,7 @@
 - 🛡️ 输入验证和错误处理
 - 📊 详细的发送结果和元数据
 - ⚙️ 配置热重载和验证功能
+- ✅ **稳定可靠**：已修复 MCP 协议连接问题，确保与 Trae AI 和 Claude Desktop 的稳定连接
 
 ## 支持的通知后端
 
@@ -110,6 +111,11 @@ npm run build
 ```bash
 npm start
 ```
+
+**验证服务器状态：**
+- 看到 "✅ Notice MCP Server 已启动，等待连接..." 表示启动成功
+- 确认显示 "📋 可用工具: send_notification, get_backends"
+- 如遇到连接问题，请检查配置文件路径和权限
 
 ### 4. 开发模式
 
@@ -334,13 +340,44 @@ Notice MCP Server 专为 AI 助手设计，让 AI 能够：
 2. 重启 Claude Desktop
 3. AI 助手自动获得 `send_notification` 工具
 
+## 🔧 故障排除
+
+### 常见问题
+
+**1. MCP 连接错误 "ReferenceError: request is not defined"**
+- ✅ **已修复**：此问题已在最新版本中解决
+- 确保使用最新版本的 `start.js`
+- 重启 MCP 服务器以应用修复
+
+**2. Trae AI 无法连接到 MCP 服务器**
+- 检查配置文件是否在正确位置：`~/Library/Application Support/Trae/trae_config.json`
+- 确认工作目录路径正确
+- 重启 Trae AI 应用程序
+
+**3. MacOS 通知不显示**
+- 检查系统偏好设置 > 通知 > 终端的通知权限
+- 确保通知中心已启用
+
+**4. 配置文件加载失败**
+- 检查 `config.toml` 文件语法是否正确
+- 验证文件路径和权限
+- 查看服务器启动日志中的错误信息
+
+### 测试连接
+
+运行完整测试套件验证所有功能：
+
+```bash
+./run-tests.sh
+```
+
 ## 📚 相关文档
 
-- [AI 助手使用指南](./AI_ASSISTANT_GUIDE.md) - 详细的 AI 集成说明
-- [Trae AI 配置指南](./TRAE_SETUP.md) - Trae AI MCP 配置
-- [Claude Desktop 配置指南](./CLAUDE_DESKTOP_SETUP.md) - Claude Desktop MCP 配置
-- [TOML 配置指南](./TOML_CONFIG_GUIDE.md) - 配置文件详解
-- [部署指南](./DEPLOYMENT.md) - 生产环境部署
+- [AI 助手使用指南](./docs/AI_ASSISTANT_GUIDE.md) - 详细的 AI 集成说明
+- [Trae AI 配置指南](./docs/TRAE_SETUP.md) - Trae AI MCP 配置
+- [Claude Desktop 配置指南](./docs/CLAUDE_DESKTOP_SETUP.md) - Claude Desktop MCP 配置
+- [TOML 配置指南](./docs/TOML_CONFIG_GUIDE.md) - 配置文件详解
+- [部署指南](./docs/DEPLOYMENT.md) - 生产环境部署
 
 ## 许可证
 
