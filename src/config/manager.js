@@ -64,6 +64,12 @@ class SimpleTomlParser {
   static parseValue(valueStr) {
     valueStr = valueStr.trim();
     
+    // 移除行内注释
+    const commentIndex = valueStr.indexOf('#');
+    if (commentIndex !== -1) {
+      valueStr = valueStr.substring(0, commentIndex).trim();
+    }
+    
     // 布尔值
     if (valueStr === 'true') return true;
     if (valueStr === 'false') return false;

@@ -281,6 +281,9 @@ class SimpleMCPServer {
 
   async sendMacOS(title, message, config = {}) {
     try {
+      console.log('[DEBUG] sendMacOS config:', JSON.stringify(config, null, 2));
+      console.log('DEBUG: config.timeout:', config.timeout, 'type:', typeof config.timeout);
+      
       // 动态导入 node-notifier
       let notifier;
       try {
@@ -298,6 +301,9 @@ class SimpleMCPServer {
         wait: config.wait || false,
         timeout: config.timeout !== undefined ? config.timeout : false // false 表示常驻通知
       };
+      
+      console.log('[DEBUG] notificationOptions.timeout:', notificationOptions.timeout, 'type:', typeof notificationOptions.timeout);
+      console.log('[DEBUG] config.timeout:', config.timeout);
       
       // 添加可选参数
       if (config.subtitle) {
@@ -334,7 +340,7 @@ class SimpleMCPServer {
         messageId: `macos-${Date.now()}`,
         platform: 'macos',
         sound: config.sound || 'default',
-        timeout: notificationOptions.timeout
+        timeout: config.timeout !== undefined ? config.timeout : false
       };
       
     } catch (error) {

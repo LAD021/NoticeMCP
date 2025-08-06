@@ -36,8 +36,8 @@ export class MacOSBackend {
       throw new Error('subtitle 必须是字符串类型');
     }
     
-    if (config.timeout && typeof config.timeout !== 'number') {
-      throw new Error('timeout 必须是数字类型');
+    if (config.timeout !== undefined && typeof config.timeout !== 'number' && config.timeout !== false) {
+      throw new Error('timeout 必须是数字类型或false');
     }
     
     if (config.appIcon && typeof config.appIcon !== 'string') {
@@ -59,7 +59,7 @@ export class MacOSBackend {
         message: message,
         sound: config.sound || true, // true 表示使用默认声音
         wait: config.wait || false,
-        timeout: config.timeout || 5
+        timeout: config.timeout !== undefined ? config.timeout : false // false 表示常驻通知
       };
       
       // 添加可选参数
@@ -103,7 +103,7 @@ export class MacOSBackend {
           message,
           subtitle: config.subtitle,
           sound: config.sound || 'default',
-          timeout: config.timeout || 5
+          timeout: config.timeout !== undefined ? config.timeout : false
         }
       };
       
