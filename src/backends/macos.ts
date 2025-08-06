@@ -71,7 +71,7 @@ export class MacOSBackend implements NotificationBackend {
         message: message,
         sound: macConfig.sound || true, // true 表示使用默认声音
         wait: macConfig.wait || false,
-        timeout: macConfig.timeout || 5
+        timeout: macConfig.timeout !== undefined ? macConfig.timeout : false // false 表示常驻通知
       };
       
       // 添加可选参数
@@ -115,7 +115,7 @@ export class MacOSBackend implements NotificationBackend {
           message,
           subtitle: macConfig.subtitle,
           sound: macConfig.sound || 'default',
-          timeout: macConfig.timeout || 5
+          timeout: macConfig.timeout !== undefined ? macConfig.timeout : false
         }
       };
       

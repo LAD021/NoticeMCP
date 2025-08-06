@@ -21,6 +21,7 @@ enabled = true
 default_sound = "Glass"
 default_subtitle = "来自 Notice MCP"
 show_in_notification_center = true
+timeout = false  # false表示常驻通知，不自动消失
 
 # 可用的系统声音列表
 [backends.macos.sounds]

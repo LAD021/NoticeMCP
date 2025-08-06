@@ -296,7 +296,7 @@ class SimpleMCPServer {
         message: message,
         sound: config.sound || true, // true 表示使用默认声音
         wait: config.wait || false,
-        timeout: config.timeout || 5
+        timeout: config.timeout !== undefined ? config.timeout : false // false 表示常驻通知
       };
       
       // 添加可选参数
@@ -334,7 +334,7 @@ class SimpleMCPServer {
         messageId: `macos-${Date.now()}`,
         platform: 'macos',
         sound: config.sound || 'default',
-        timeout: config.timeout || 5
+        timeout: notificationOptions.timeout
       };
       
     } catch (error) {

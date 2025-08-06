@@ -24,9 +24,7 @@ interface ImportMeta {
   url: string;
 }
 
-declare const import: {
-  meta: ImportMeta;
-};
+// 移除错误的import声明，使用标准的import.meta
 
 // 简单的验证函数
 function validateString(value: any, name: string): string {
