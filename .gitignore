@@ -155,3 +155,6 @@ Thumbs.db
 config.toml
 config.local.toml
 .env.local
+
+# macOS service files (generated dynamically)
+com.notice.mcp.plist
