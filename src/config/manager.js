@@ -192,6 +192,17 @@ class ConfigManager {
               "Morse", "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"
             ]
           }
+        },
+        feishu: {
+          enabled: true,
+          webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/fb198b0a-6794-48f5-a5d6-d1a746c8f0a4",
+          secret: "",
+          at_all: false,
+          at_users: [],
+          at_mobiles: [],
+          timeout: 5000,
+          retry_count: 3,
+          retry_delay: 1000
         }
       },
       templates: {
