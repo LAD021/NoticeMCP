@@ -614,7 +614,9 @@ async function startServer() {
   // 加载配置
   const config = await loadConfig();
   
+  console.log('[DEBUG] Creating SimpleMCPServer instance...');
   const server = new SimpleMCPServer(config);
+  console.log(`[DEBUG] Server created with ${server.tools.length} tools`);
   const transport = new StdioMCPTransport(server);
   
   console.log('✅ Notice MCP Server 已启动，等待连接...');
