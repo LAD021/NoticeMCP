@@ -404,9 +404,9 @@ class ConfigManager {
    * 获取配置摘要
    */
   getConfigSummary() {
-    const backends = Object.keys(this.config.backends || {}).join(', ');
-    const logLevel = this.config.logging?.level || 'info';
-    return `backends: [${backends}], log_level: ${logLevel}`;
+    const enabledBackends = Object.keys(this.config.backends || {})
+      .filter(backend => this.isBackendEnabled(backend));
+    return `激活后端: ${enabledBackends.join(', ')}`;
   }
 }
 

@@ -460,7 +460,6 @@ async function startServer() {
   
   console.error('✅ Notice MCP Server 已启动，等待连接...');
   console.error('📋 可用工具:', server.tools.map(t => t.name).join(', '));
-  console.error('🔧 支持后端: email, webhook, slack, macos');
   
   if (config) {
     console.error('⚙️  使用TOML配置文件');
