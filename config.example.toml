@@ -1,10 +1,10 @@
 # Notice MCP Server 配置文件示例
-# 用于管理各种通知后端的配置参数
+# 仅包含已实现的后端：macOS 和飞书
 #
 # 使用说明：
 # 1. 复制此文件为 config.toml
-# 2. 根据需要启用相应的后端（取消注释相关配置）
-# 3. 填写您的实际配置信息（API密钥、Webhook URL等）
+# 2. 根据需要修改配置参数
+# 3. 填写您的实际飞书机器人配置信息
 # 4. config.toml 文件已被 .gitignore 忽略，不会被提交到版本控制
 
 [server]
@@ -21,62 +21,6 @@ file = "logs/notice-mcp.log"
 enable_console = true
 
 
-# 邮件通知配置（已注释，如需使用请取消注释）
-# [backends.email]
-# enabled = false
-# default_from = "noreply@yourapp.com"
-# default_subject = "通知来自 Notice MCP"
-
-# SMTP服务器配置
-# [backends.email.smtp]
-# host = "smtp.gmail.com"
-# port = 587
-# secure = false
-# 认证信息（建议使用环境变量）
-# user = "your-email@gmail.com"
-# pass = "your-app-password"
-
-# 默认收件人列表
-# [backends.email.recipients]
-# default = ["user@example.com"]
-# admin = ["admin@example.com"]
-# dev = ["dev@example.com"]
-
-# Webhook通知配置（已注释，如需使用请取消注释）
-# [backends.webhook]
-# enabled = false
-# default_method = "POST"
-# timeout = 5000
-# retry_count = 3
-# retry_delay = 1000
-
-# 预定义的Webhook端点
-# [backends.webhook.endpoints]
-# slack = "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
-# discord = "https://discord.com/api/webhooks/YOUR/DISCORD/WEBHOOK"
-# teams = "https://outlook.office.com/webhook/YOUR/TEAMS/WEBHOOK"
-# custom = "https://your-custom-endpoint.com/webhook"
-
-# 默认请求头
-# [backends.webhook.headers]
-# "Content-Type" = "application/json"
-# "User-Agent" = "Notice-MCP/1.0"
-# "Authorization" = "Bearer your-token"  # 取消注释并设置您的token
-
-# Slack通知配置（已注释，如需使用请取消注释）
-# [backends.slack]
-# enabled = false
-# default_channel = "#general"
-# default_username = "Notice Bot"
-# default_icon_emoji = ":robot_face:"
-# default_icon_url = ""
-
-# Slack Webhook URLs（支持多个工作区）
-# [backends.slack.workspaces]
-# main = "https://hooks.slack.com/services/YOUR/MAIN/WEBHOOK"
-# dev = "https://hooks.slack.com/services/YOUR/DEV/WEBHOOK"
-# test = "https://hooks.slack.com/services/YOUR/TEST/WEBHOOK"
-
 # MacOS系统通知配置
 [backends.macos]
 enabled = true
@@ -92,151 +36,28 @@ available = [
     "Purr", "Sosumi", "Submarine", "Tink"
 ]
 
-# 通知模板配置
-[templates]
-# 任务完成通知模板
-[templates.task_completed]
-title = "任务完成"
-message = "您的 {task_name} 已成功完成"
-subtitle = "AI 助手"
-sound = "Hero"
+# 飞书通知配置
+[backends.feishu]
+enabled = true
+webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN"
+# secret = "your-bot-secret"  # 可选，用于安全验证
 
-# 错误通知模板
-[templates.error]
-title = "任务失败"
-message = "任务 {task_name} 执行失败：{error_message}"
-subtitle = "错误通知"
-sound = "Basso"
+# Webhook通知配置
+[backends.webhook]
+enabled = true
+default_url = "https://your-webhook-endpoint.com/notify"
+default_method = "POST"
+timeout = 5000
 
-# 警告通知模板
-[templates.warning]
-title = "警告"
-message = "{warning_message}"
-subtitle = "系统警告"
-sound = "Ping"
 
-# 信息通知模板
-[templates.info]
-title = "信息"
-message = "{info_message}"
-subtitle = "系统信息"
-sound = "Glass"
-
-# 安全配置
-[security]
-# 允许的发送者IP地址（空表示允许所有）
-allowed_ips = []
-# API密钥（建议使用环境变量）
-# api_key = "your-secret-api-key"
-# 启用HTTPS
-require_https = false
 
 # 速率限制配置
 [rate_limiting]
 enabled = true
 max_requests_per_minute = 60
-max_requests_per_hour = 1000
-max_requests_per_day = 10000
 
 # 每个后端的速率限制
 [rate_limiting.backends]
-email = 10      # 每分钟最多10封邮件
-webhook = 30    # 每分钟最多30个webhook请求
-slack = 20      # 每分钟最多20个Slack消息
 macos = 60      # 每分钟最多60个系统通知
-
-# 环境变量映射
-# 这些配置项可以通过环境变量覆盖
-[environment]
-# 邮件配置
-email_smtp_user = "SMTP_USER"
-email_smtp_pass = "SMTP_PASSWORD"
-# Slack配置
-slack_webhook_main = "SLACK_WEBHOOK_MAIN"
-slack_webhook_dev = "SLACK_WEBHOOK_DEV"
-# Webhook配置
-webhook_auth_token = "WEBHOOK_AUTH_TOKEN"
-# 安全配置
-api_key = "NOTICE_MCP_API_KEY"
-
-# 功能开关
-[features]
-# 启用通知历史记录
-enable_history = true
-history_max_entries = 1000
-history_retention_days = 30
-
-# 启用通知统计
-enable_statistics = true
-statistics_retention_days = 90
-
-# 启用通知队列
-enable_queue = true
-queue_max_size = 100
-queue_retry_attempts = 3
-
-# 启用通知去重
-enable_deduplication = true
-deduplication_window_minutes = 5
-
-# 开发和调试配置
-[development]
-# 开发模式
-debug_mode = false
-# 模拟模式（不实际发送通知）
-simulation_mode = false
-# 详细日志
-verbose_logging = false
-# 测试模式
-test_mode = false
-
-# 测试配置
-[testing]
-# 测试通知接收者
-test_email = "test@example.com"
-test_slack_channel = "#testing"
-test_webhook_url = "https://httpbin.org/post"
-
-# 性能配置
-[performance]
-# 并发处理数量
-max_concurrent_notifications = 10
-# 连接超时（毫秒）
-connection_timeout = 5000
-# 请求超时（毫秒）
-request_timeout = 10000
-# 连接池大小
-connection_pool_size = 20
-
-# ========================================
-# Trae MCP 配置示例
-# ========================================
-# 
-# 要在 Trae 中使用此 MCP 服务器，请将以下配置
-# 添加到您的 Trae 配置文件中：
-#
-# 配置文件位置：
-# - macOS: ~/Library/Application Support/Trae/trae_config.json
-# - Windows: %APPDATA%\Trae\trae_config.json
-#
-# 配置内容：
-# {
-#   "mcpServers": {
-#     "notice-mcp": {
-#       "command": "node",
-#       "args": [
-#         "/path/to/your/NoticeMCP/start.js"
-#       ],
-#       "env": {
-#         "NODE_ENV": "production"
-#       }
-#     }
-#   }
-# }
-#
-# 使用示例：
-# - "发送一个MacOS通知，标题'任务完成'，内容'代码编译成功'"
-# - "发送邮件通知给admin组，主题'系统警告'，内容'服务器负载过高'"
-# - "发送Slack消息到#general频道：'部署完成'"
-#
-# 详细配置指南请参考：CLAUDE_DESKTOP_SETUP.md
+feishu = 30     # 每分钟最多30条飞书消息
+webhook = 30    # 每分钟最多30个webhook请求

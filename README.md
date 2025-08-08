@@ -15,7 +15,7 @@
 
 ## 功能特性
 
-- 🚀 支持多种通知后端（邮件、Webhook、Slack、MacOS系统通知）
+- 🚀 支持多种通知后端（邮件、Webhook、Slack、MacOS系统通知、飞书通知）
 - 📋 TOML配置文件管理，支持环境变量映射
 - 🔧 可扩展的后端架构
 - 📝 完整的TypeScript类型支持
@@ -31,6 +31,12 @@
 - ✅ **macOS 系统通知**：已完全实现并测试
   - 支持标题、副标题、声音配置
   - 支持 timeout 参数（受系统设置限制）
+  - 完整的错误处理和状态反馈
+
+- ✅ **飞书通知**：已完全实现并测试
+  - 支持文本消息、富文本消息和卡片消息
+  - 支持 @所有人、@指定用户、@手机号
+  - 支持签名校验确保安全性
   - 完整的错误处理和状态反馈
 
 ### v0.2.0 开发计划
@@ -81,6 +87,14 @@
 - 支持标题、副标题和系统声音
 - 无需额外配置，直接使用系统通知中心
 - **注意**：通知持久性受macOS系统设置限制（详见下方说明）
+
+### 5. 飞书通知 ✅ 已实现
+- 通过飞书机器人Webhook发送消息到飞书群聊
+- 支持文本消息、富文本消息和卡片消息
+- 支持 @所有人、@指定用户（open_id）、@手机号
+- 支持签名校验确保消息安全性
+- 可配置多个群聊机器人（主群、开发群、测试群等）
+- 完整的错误处理和发送状态反馈
 
 ## 配置管理
 
@@ -177,7 +191,7 @@ npm run dev
 **参数：**
 - `title` (string): 通知标题
 - `message` (string): 通知内容
-- `backend` (string): 后端类型 (`email` | `webhook` | `slack` | `macos`)
+- `backend` (string): 后端类型 (`email` | `webhook` | `slack` | `macos` | `feishu`)
 - `config` (object, 可选): 后端特定配置
 
 **示例：**
@@ -258,6 +272,32 @@ npm run dev
 - `Basso`, `Blow`, `Bottle`, `Frog`, `Funk`
 - `Glass`, `Hero`, `Morse`, `Ping`, `Pop`
 - `Purr`, `Sosumi`, `Submarine`, `Tink`
+
+### 飞书通知配置
+
+```json
+{
+  "webhookUrl": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN",
+  "secret": "your-bot-secret",
+  "atAll": false,
+  "atUsers": ["ou_xxx", "ou_yyy"],
+  "atMobiles": ["+8613800138000"]
+}
+```
+
+**飞书通知示例：**
+
+```json
+{
+  "title": "AI任务完成",
+  "message": "您的数据分析任务已完成，请查看结果",
+  "backend": "feishu",
+  "config": {
+    "webhookUrl": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN",
+    "atUsers": ["ou_xxx"]
+  }
+}
+```
 
 **MacOS通知示例：**
 
