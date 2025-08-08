@@ -22,10 +22,10 @@ async function loadConfig() {
     const { ConfigManager } = await import('./src/config/manager.js');
     configManager = new ConfigManager();
     await configManager.loadConfig();
-    console.error('📋 配置文件已加载:', configManager.getConfigSummary());
+    console.log('📋 配置文件已加载:', configManager.getConfigSummary());
     return configManager;
   } catch (error) {
-    console.error('⚠️  配置文件加载失败，使用默认配置:', error.message);
+    console.log('⚠️  配置文件加载失败，使用默认配置:', error.message);
     return null;
   }
 }
@@ -494,7 +494,7 @@ class StdioMCPTransport {
 
 // 启动服务器
 async function startServer() {
-  console.error('🚀 Notice MCP Server 启动中...');
+  console.log('🚀 Notice MCP Server 启动中...');
   
   // 加载配置
   const config = await loadConfig();
@@ -502,7 +502,7 @@ async function startServer() {
   const server = new SimpleMCPServer(config);
   const transport = new StdioMCPTransport(server);
   
-  console.error('✅ Notice MCP Server 已启动，等待连接...');
+  console.log('✅ Notice MCP Server 已启动，等待连接...');
   console.log('📋 可用工具: send_notification');
   
   const availableBackends = server.getAvailableBackends();

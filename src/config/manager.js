@@ -119,9 +119,9 @@ class ConfigManager {
         const content = fs.readFileSync(this.configPath, 'utf-8');
         const userConfig = SimpleTomlParser.parse(content);
         this.config = this.mergeConfig(this.getDefaultConfig(), userConfig);
-        console.error(`📋 配置文件已从 ${this.configPath} 加载`);
+        console.log(`📋 配置文件已从 ${this.configPath} 加载`);
       } else {
-        console.error(`⚠️  配置文件 ${this.configPath} 不存在，使用默认配置`);
+        console.log(`⚠️  配置文件 ${this.configPath} 不存在，使用默认配置`);
       }
     } catch (error) {
       console.error(`❌ 配置文件加载失败: ${error.message}`);
