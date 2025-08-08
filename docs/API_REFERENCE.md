@@ -1,10 +1,81 @@
 # 📚 NoticeMCP API 参考文档
 
+## 🚀 核心集成说明
+
+NoticeMCP 目前专注于两个核心通知后端的深度集成：
+
+### 🔥 飞书集成实现
+
+**技术架构**：
+- 基于飞书 Webhook API 实现
+- 支持签名验证确保安全性
+- 采用 HTTP POST 请求发送消息
+- 支持多种消息类型（文本、卡片、交互式消息）
+
+**核心特性**：
+- **@ 功能**：支持 @所有人 和 @特定用户
+- **消息类型**：文本消息、富文本、卡片消息
+- **错误重试**：自动重试机制，提高可靠性
+- **签名验证**：支持 HMAC-SHA256 签名验证
+
+**实现细节**：
+```javascript
+// 飞书消息发送核心逻辑
+const payload = {
+  msg_type: 'text',
+  content: {
+    text: message + (atAll ? ' <at user_id="all">所有人</at>' : '')
+  }
+};
+
+// 签名计算
+const timestamp = Date.now();
+const signature = crypto.createHmac('sha256', secret)
+  .update(`${timestamp}\n${secret}`)
+  .digest('base64');
+```
+
+### 🍎 macOS 集成实现
+
+**技术架构**：
+- 基于 `node-notifier` 库实现
+- 调用 macOS 原生通知中心 API
+- 支持丰富的通知样式和交互
+
+**核心特性**：
+- **原生体验**：完全集成 macOS 通知中心
+- **声音支持**：内置多种系统声音
+- **交互功能**：支持点击跳转、按钮操作
+- **样式定制**：图标、图片、副标题等
+
+**实现细节**：
+```javascript
+// macOS 通知发送核心逻辑
+const notificationOptions = {
+  title: title,
+  message: message,
+  sound: config.sound || 'Glass',
+  timeout: config.timeout || false,
+  subtitle: config.subtitle,
+  icon: config.icon,
+  contentImage: config.contentImage,
+  open: config.open,
+  wait: config.wait || false,
+  appName: config.appName || 'NoticeMCP'
+};
+
+notifier.notify(notificationOptions);
+```
+
+---
+
 ## 📋 目录
 
 - [概述](#概述)
 - [MCP 工具](#mcp-工具)
 - [通知后端](#通知后端)
+  - [飞书 (Feishu)](#飞书-feishu)
+  - [macOS 通知](#macos-通知)
 - [配置参数](#配置参数)
 - [响应格式](#响应格式)
 - [错误处理](#错误处理)
@@ -50,10 +121,7 @@ const result = await callTool(toolName, parameters);
         "description": "后端特定配置（可选）",
         "properties": {
           "feishu": { "$ref": "#/definitions/FeishuConfig" },
-          "macos": { "$ref": "#/definitions/MacOSConfig" },
-          "email": { "$ref": "#/definitions/EmailConfig" },
-          "slack": { "$ref": "#/definitions/SlackConfig" },
-          "webhook": { "$ref": "#/definitions/WebhookConfig" }
+          "macos": { "$ref": "#/definitions/MacOSConfig" }
         }
       }
     },
@@ -95,13 +163,10 @@ const result = await callTool('send_notification', {
     macos: {
       sound: 'Hero',
       timeout: 10
-    },
-    email: {
-      priority: 'high',
-      to: ['admin@company.com']
     }
   }
 });
+
 ```
 
 ## 通知后端
@@ -283,331 +348,6 @@ const result = await callTool('send_notification', {
     macos: {
       open: 'https://example.com/message',
       sound: 'Ping'
-    }
-  }
-});
-```
-
-### 邮件 (Email)
-
-#### 配置参数
-
-```typescript
-interface EmailConfig {
-  to?: string[];                  // 收件人列表
-  cc?: string[];                  // 抄送列表
-  bcc?: string[];                 // 密送列表
-  from?: string;                  // 发件人
-  subject?: string;               // 邮件主题（覆盖 title）
-  html?: string;                  // HTML 内容
-  text?: string;                  // 纯文本内容（覆盖 message）
-  attachments?: Attachment[];     // 附件列表
-  priority?: 'high' | 'normal' | 'low';  // 优先级
-  headers?: Record<string, string>;      // 自定义邮件头
-  replyTo?: string;               // 回复地址
-}
-
-interface Attachment {
-  filename: string;               // 文件名
-  path?: string;                  // 文件路径
-  content?: Buffer | string;      // 文件内容
-  contentType?: string;           // MIME 类型
-  cid?: string;                   // 内联图片 ID
-}
-```
-
-#### 参数详解
-
-| 参数 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `to` | string[] | 配置文件中的值 | 收件人邮箱列表 |
-| `cc` | string[] | [] | 抄送邮箱列表 |
-| `bcc` | string[] | [] | 密送邮箱列表 |
-| `from` | string | 配置文件中的值 | 发件人邮箱 |
-| `subject` | string | title 参数值 | 邮件主题 |
-| `html` | string | null | HTML 格式内容 |
-| `text` | string | message 参数值 | 纯文本内容 |
-| `attachments` | Attachment[] | [] | 附件列表 |
-| `priority` | string | 'normal' | 邮件优先级 |
-| `headers` | object | {} | 自定义邮件头 |
-| `replyTo` | string | null | 回复地址 |
-
-#### 使用示例
-
-```javascript
-// 基本邮件通知
-const result = await callTool('send_notification', {
-  title: '系统报告',
-  message: '每日系统状态报告已生成，请查看附件。',
-  config: {
-    email: {
-      to: ['manager@company.com', 'team@company.com'],
-      priority: 'high'
-    }
-  }
-});
-
-// 带附件的邮件
-const result = await callTool('send_notification', {
-  title: '月度报告',
-  message: '请查看本月的详细报告。',
-  config: {
-    email: {
-      to: ['boss@company.com'],
-      cc: ['team@company.com'],
-      attachments: [
-        {
-          filename: 'monthly-report.pdf',
-          path: '/path/to/report.pdf'
-        },
-        {
-          filename: 'data.xlsx',
-          path: '/path/to/data.xlsx'
-        }
-      ]
-    }
-  }
-});
-
-// HTML 邮件
-const result = await callTool('send_notification', {
-  title: '欢迎邮件',
-  message: '纯文本版本的欢迎消息',
-  config: {
-    email: {
-      to: ['newuser@company.com'],
-      html: `
-        <h1>欢迎加入我们的团队！</h1>
-        <p>这是一封 <strong>HTML 格式</strong> 的欢迎邮件。</p>
-        <ul>
-          <li>请查看我们的<a href="https://wiki.company.com">内部文档</a></li>
-          <li>加入我们的 Slack 频道</li>
-          <li>参加新员工培训</li>
-        </ul>
-      `,
-      headers: {
-        'X-Custom-Header': 'Welcome Email'
-      }
-    }
-  }
-});
-```
-
-### Slack
-
-#### 配置参数
-
-```typescript
-interface SlackConfig {
-  token?: string;                 // Bot Token
-  channel?: string;               // 频道或用户 ID
-  username?: string;              // 机器人用户名
-  icon_emoji?: string;            // 表情图标
-  icon_url?: string;              // 头像 URL
-  thread_ts?: string;             // 回复消息的时间戳
-  blocks?: object[];              // Block Kit 消息块
-  attachments?: object[];         // 消息附件
-  unfurl_links?: boolean;         // 是否展开链接
-  unfurl_media?: boolean;         // 是否展开媒体
-}
-```
-
-#### 参数详解
-
-| 参数 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `token` | string | 配置文件中的值 | Slack Bot Token |
-| `channel` | string | 配置文件中的值 | 频道 ID 或用户 ID |
-| `username` | string | 'NoticeMCP' | 机器人显示名称 |
-| `icon_emoji` | string | null | 表情图标（如 :robot_face:） |
-| `icon_url` | string | null | 头像图片 URL |
-| `thread_ts` | string | null | 回复消息的时间戳 |
-| `blocks` | object[] | null | Block Kit 消息块 |
-| `attachments` | object[] | null | 传统消息附件 |
-| `unfurl_links` | boolean | true | 是否自动展开链接 |
-| `unfurl_media` | boolean | true | 是否自动展开媒体 |
-
-#### 使用示例
-
-```javascript
-// 发送到频道
-const result = await callTool('send_notification', {
-  title: '部署完成',
-  message: '生产环境部署已成功完成！',
-  config: {
-    slack: {
-      channel: '#deployments',
-      username: 'DeployBot',
-      icon_emoji: ':rocket:'
-    }
-  }
-});
-
-// 发送私信
-const result = await callTool('send_notification', {
-  title: '个人提醒',
-  message: '你有新的任务分配，请及时查看。',
-  config: {
-    slack: {
-      channel: '@username',
-      icon_emoji: ':bell:'
-    }
-  }
-});
-
-// 使用 Block Kit
-const result = await callTool('send_notification', {
-  title: '项目状态',
-  message: '项目进度更新',
-  config: {
-    slack: {
-      channel: '#project-updates',
-      blocks: [
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: '项目状态更新'
-          }
-        },
-        {
-          type: 'section',
-          fields: [
-            {
-              type: 'mrkdwn',
-              text: '*进度:*\n75%'
-            },
-            {
-              type: 'mrkdwn',
-              text: '*预计完成:*\n2024-01-15'
-            }
-          ]
-        },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: '查看详情'
-              },
-              url: 'https://project.company.com/status'
-            }
-          ]
-        }
-      ]
-    }
-  }
-});
-```
-
-### Webhook
-
-#### 配置参数
-
-```typescript
-interface WebhookConfig {
-  url?: string;                   // Webhook URL
-  method?: 'GET' | 'POST' | 'PUT' | 'PATCH';  // HTTP 方法
-  headers?: Record<string, string>;           // 请求头
-  payload?: object;               // 请求体模板
-  timeout?: number;               // 超时时间
-  retries?: number;               // 重试次数
-  auth?: {
-    type: 'basic' | 'bearer';
-    username?: string;
-    password?: string;
-    token?: string;
-  };
-}
-```
-
-#### 参数详解
-
-| 参数 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `url` | string | 配置文件中的值 | Webhook 端点 URL |
-| `method` | string | 'POST' | HTTP 请求方法 |
-| `headers` | object | {} | 自定义请求头 |
-| `payload` | object | 默认模板 | 请求体模板 |
-| `timeout` | number | 5000 | 请求超时时间（毫秒） |
-| `retries` | number | 3 | 失败重试次数 |
-| `auth` | object | null | 认证配置 |
-
-#### 默认 Payload 模板
-
-```json
-{
-  "title": "{{title}}",
-  "message": "{{message}}",
-  "timestamp": "{{timestamp}}",
-  "source": "NoticeMCP"
-}
-```
-
-#### 使用示例
-
-```javascript
-// 基本 Webhook 通知
-const result = await callTool('send_notification', {
-  title: '系统事件',
-  message: '检测到异常活动',
-  config: {
-    webhook: {
-      url: 'https://api.example.com/notifications',
-      method: 'POST'
-    }
-  }
-});
-
-// 自定义 Payload
-const result = await callTool('send_notification', {
-  title: '用户注册',
-  message: '新用户已注册',
-  config: {
-    webhook: {
-      url: 'https://crm.company.com/webhook',
-      headers: {
-        'Authorization': 'Bearer your-token',
-        'Content-Type': 'application/json',
-        'X-Source': 'NoticeMCP'
-      },
-      payload: {
-        event: 'user_registration',
-        data: {
-          title: '{{title}}',
-          message: '{{message}}',
-          timestamp: '{{timestamp}}',
-          severity: 'info'
-        },
-        metadata: {
-          source: 'notification_system',
-          version: '1.0'
-        }
-      }
-    }
-  }
-});
-
-// 带认证的 Webhook
-const result = await callTool('send_notification', {
-  title: '安全警告',
-  message: '检测到可疑登录活动',
-  config: {
-    webhook: {
-      url: 'https://security.company.com/alerts',
-      auth: {
-        type: 'bearer',
-        token: 'your-security-token'
-      },
-      payload: {
-        alert_type: 'security',
-        title: '{{title}}',
-        description: '{{message}}',
-        timestamp: '{{timestamp}}',
-        priority: 'high'
-      }
     }
   }
 });
@@ -823,10 +563,6 @@ async function sendLeveledNotification(level, title, message, options = {}) {
         sound: 'Sosumi',
         timeout: false  // 不自动消失
       };
-      config.email = {
-        priority: 'high',
-        to: options.emergencyContacts || ['admin@company.com']
-      };
       break;
       
     case 'error':
@@ -835,9 +571,6 @@ async function sendLeveledNotification(level, title, message, options = {}) {
       };
       config.macos = {
         sound: 'Hero'
-      };
-      config.email = {
-        priority: 'high'
       };
       break;
       
@@ -900,7 +633,6 @@ await sendLeveledNotification('error', '服务异常', '用户服务响应超时
 
 // 紧急通知
 await sendLeveledNotification('critical', '系统故障', '数据库连接完全失败', {
-  emergencyContacts: ['cto@company.com', 'ops@company.com'],
   debug: true
 });
 ```
