@@ -306,7 +306,7 @@ export class ConfigManager {
       },
       backends: {
         email: {
-          enabled: true,
+          enabled: false,
           default_from: 'noreply@yourapp.com',
           default_subject: '通知来自 Notice MCP',
           smtp: {
@@ -321,7 +321,7 @@ export class ConfigManager {
           }
         },
         webhook: {
-          enabled: true,
+          enabled: false,
           default_method: 'POST',
           timeout: 5000,
           retry_count: 3,
@@ -333,7 +333,7 @@ export class ConfigManager {
           }
         },
         slack: {
-          enabled: true,
+          enabled: false,
           default_channel: '#general',
           default_username: 'Notice Bot',
           default_icon_emoji: ':robot_face:',
@@ -341,7 +341,7 @@ export class ConfigManager {
           workspaces: {}
         },
         feishu: {
-          enabled: false,
+          enabled: true,
           default_at_all: false,
           webhooks: {},
           secrets: {},

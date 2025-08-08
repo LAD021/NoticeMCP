@@ -112,7 +112,7 @@ class SimpleMCPServer {
   }
 
   async sendToAllEnabledBackends(title, message) {
-    const availableBackends = ['email', 'webhook', 'slack', 'feishu', 'macos'];
+    const availableBackends = ['macos', 'feishu'];
     const enabledBackends = [];
     
     // 检查哪些后端是启用的
@@ -155,15 +155,6 @@ class SimpleMCPServer {
         
         let result;
         switch (backendName) {
-          case 'email':
-            result = await this.sendEmail(title, message, finalConfig);
-            break;
-          case 'webhook':
-            result = await this.sendWebhook(title, message, finalConfig);
-            break;
-          case 'slack':
-            result = await this.sendSlack(title, message, finalConfig);
-            break;
           case 'feishu':
             result = await this.sendFeishu(title, message, finalConfig);
             break;
@@ -207,105 +198,11 @@ class SimpleMCPServer {
     };
   }
 
-  async sendEmail(title, message, config) {
-    // 模拟邮件发送
-    console.error(`[EMAIL] 发送邮件: ${title}`);
-    console.error(`[EMAIL] 收件人: ${config.to || 'default@example.com'}`);
-    console.error(`[EMAIL] 内容: ${message.substring(0, 100)}...`);
-    
-    // 在实际应用中，这里应该集成真实的邮件服务
-    return {
-      messageId: `email_${Date.now()}`,
-      recipient: config.to || 'default@example.com',
-      method: 'smtp'
-    };
-  }
 
-  async sendWebhook(title, message, config) {
-    const url = config.url;
-    if (!url) {
-      throw new Error('Webhook配置缺少URL');
-    }
 
-    console.error(`[WEBHOOK] 发送到: ${url}`);
-    console.error(`[WEBHOOK] 标题: ${title}`);
-    
-    const payload = {
-      title,
-      message,
-      timestamp: new Date().toISOString(),
-      source: 'notice-mcp'
-    };
 
-    try {
-      const response = await fetch(url, {
-        method: config.method || 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...config.headers
-        },
-        body: JSON.stringify(payload)
-      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
 
-      return {
-        messageId: `webhook_${Date.now()}`,
-        url,
-        statusCode: response.status
-      };
-    } catch (error) {
-      throw new Error(`Webhook发送失败: ${error.message}`);
-    }
-  }
-
-  async sendSlack(title, message, config) {
-    const webhookUrl = config.webhookUrl;
-    if (!webhookUrl) {
-      throw new Error('Slack配置缺少webhookUrl');
-    }
-
-    console.error(`[SLACK] 发送到频道: ${config.channel || 'default'}`);
-    console.error(`[SLACK] 标题: ${title}`);
-
-    const payload = {
-      text: title,
-      attachments: [{
-        color: 'good',
-        text: message,
-        ts: Math.floor(Date.now() / 1000),
-        footer: 'Notice MCP',
-        footer_icon: '🤖'
-      }]
-    };
-
-    if (config.channel) payload.channel = config.channel;
-    if (config.username) payload.username = config.username;
-    if (config.iconEmoji) payload.icon_emoji = config.iconEmoji;
-
-    try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Slack API错误: ${response.status} - ${errorText}`);
-      }
-
-      return {
-        messageId: `slack_${Date.now()}`,
-        channel: config.channel,
-        response: await response.text()
-      };
-    } catch (error) {
-      throw new Error(`Slack发送失败: ${error.message}`);
-    }
-  }
 
   async sendFeishu(title, message, config) {
     // 从配置中获取webhook URL
