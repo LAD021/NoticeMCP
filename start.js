@@ -117,16 +117,22 @@ class SimpleMCPServer {
     
     // 检查哪些后端是启用的
     for (const backendName of availableBackends) {
-      if (this.configManager && this.configManager.isBackendEnabled(backendName)) {
-        enabledBackends.push(backendName);
-        console.log(`✅ 后端 ${backendName} 已启用`);
-      } else {
-        console.log(`❌ 后端 ${backendName} 未启用`);
-        // 添加调试信息
-        if (this.configManager) {
-          const backendConfig = this.configManager.getBackendConfig(backendName);
-          console.log(`🔍 ${backendName} 配置:`, JSON.stringify(backendConfig, null, 2));
+      console.log(`🔍 检查后端 ${backendName}`);
+      console.log(`🔍 configManager 存在:`, !!this.configManager);
+      if (this.configManager) {
+        const isEnabled = this.configManager.isBackendEnabled(backendName);
+        console.log(`🔍 ${backendName} isBackendEnabled 返回:`, isEnabled);
+        const backendConfig = this.configManager.getBackendConfig(backendName);
+        console.log(`🔍 ${backendName} 配置:`, JSON.stringify(backendConfig, null, 2));
+        
+        if (isEnabled) {
+          enabledBackends.push(backendName);
+          console.log(`✅ 后端 ${backendName} 已启用`);
+        } else {
+          console.log(`❌ 后端 ${backendName} 未启用`);
         }
+      } else {
+        console.log(`❌ 后端 ${backendName} 未启用 (无配置管理器)`);
       }
     }
     
@@ -159,6 +165,7 @@ class SimpleMCPServer {
         }
         
         let result;
+        console.log(`🔧 正在发送到 ${backendName} 后端，配置:`, JSON.stringify(finalConfig, null, 2));
         switch (backendName) {
           case 'feishu':
             result = await this.sendFeishu(title, message, finalConfig);
@@ -175,6 +182,8 @@ class SimpleMCPServer {
           ...result
         };
       } catch (error) {
+        console.error(`❌ ${backendName} 后端发送失败:`, error.message);
+        console.error(`❌ 错误详情:`, error.stack);
         return {
           success: false,
           backend: backendName,
@@ -210,24 +219,28 @@ class SimpleMCPServer {
 
 
   async sendFeishu(title, message, config) {
-    // 从配置中获取webhook URL
-    const webhookUrl = config?.webhook?.[0] || config?.webhooks?.main || config?.webhookUrl;
+    // 从配置中获取webhook URL数组
+    const webhookUrls = config?.webhook || [];
     
-    if (!config || !webhookUrl) {
-      throw new Error('飞书配置无效，需要提供webhook数组或webhookUrl');
+    if (!config || !Array.isArray(webhookUrls) || webhookUrls.length === 0) {
+      throw new Error('飞书配置无效，需要提供有效的webhook数组');
     }
 
-    if (!webhookUrl.includes('open.feishu.cn')) {
-      throw new Error('飞书webhookUrl格式无效');
+    // 验证所有webhook URL格式
+    for (const url of webhookUrls) {
+      if (!url.includes('open.feishu.cn')) {
+        throw new Error(`飞书webhookUrl格式无效: ${url}`);
+      }
     }
 
-    // 如果是占位符URL，返回模拟响应
-    if (webhookUrl.includes('YOUR_WEBHOOK_TOKEN')) {
+    // 如果所有URL都是占位符，返回模拟响应
+    if (webhookUrls.every(url => url.includes('YOUR_WEBHOOK_TOKEN'))) {
       return {
         messageId: `feishu-${Date.now()}`,
         platform: 'feishu',
         status: 'simulated',
-        note: '使用占位符URL，实际未发送到飞书'
+        note: '使用占位符URL，实际未发送到飞书',
+        webhookCount: webhookUrls.length
       };
     }
 
@@ -291,31 +304,75 @@ class SimpleMCPServer {
       payload.sign = sign;
     }
 
+    // 并行发送到所有webhook URL
+    const sendPromises = webhookUrls.map(async (webhookUrl, index) => {
+      try {
+        // 如果是占位符URL，跳过实际发送
+        if (webhookUrl.includes('YOUR_WEBHOOK_TOKEN')) {
+          return {
+            success: true,
+            webhookIndex: index,
+            webhookUrl,
+            status: 'simulated',
+            note: '占位符URL，未实际发送'
+          };
+        }
+
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`飞书API错误: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.code !== 0) {
+          throw new Error(`飞书发送失败: ${result.msg}`);
+        }
+
+        console.error(`[FEISHU] 消息已发送到webhook ${index + 1}`);
+        return {
+          success: true,
+          webhookIndex: index,
+          webhookUrl,
+          response: result
+        };
+      } catch (error) {
+        console.error(`[FEISHU] webhook ${index + 1} 发送失败: ${error.message}`);
+        return {
+          success: false,
+          webhookIndex: index,
+          webhookUrl,
+          error: error.message
+        };
+      }
+    });
+
     try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      });
+      const results = await Promise.all(sendPromises);
+      const successCount = results.filter(r => r.success).length;
+      const failureCount = results.length - successCount;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`飞书API错误: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.code !== 0) {
-        throw new Error(`飞书发送失败: ${result.msg}`);
-      }
-
-      console.error(`[FEISHU] 消息已发送`);
       console.error(`[FEISHU] 标题: ${title}`);
+      console.error(`[FEISHU] 发送结果: ${successCount}成功, ${failureCount}失败`);
+
+      // 如果至少有一个成功，则认为发送成功
+      if (successCount === 0) {
+        const errors = results.filter(r => !r.success).map(r => r.error).join('; ');
+        throw new Error(`所有飞书webhook发送失败: ${errors}`);
+      }
 
       return {
         messageId: `feishu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         platform: 'feishu',
-        response: result,
+        results,
+        successCount,
+        failureCount,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
