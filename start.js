@@ -22,10 +22,8 @@ async function loadConfig() {
     const { ConfigManager } = await import('./src/config/manager.js');
     configManager = new ConfigManager();
     await configManager.loadConfig();
-    console.log('📋 配置文件已加载:', configManager.getConfigSummary());
     return configManager;
   } catch (error) {
-    console.log('⚠️  配置文件加载失败，使用默认配置:', error.message);
     return null;
   }
 }
@@ -72,50 +70,32 @@ class SimpleMCPServer {
   }
   
   getAvailableBackends() {
-    console.log(`[FORCE DEBUG] getAvailableBackends called`);
-    console.log(`[FORCE DEBUG] configManager exists:`, !!this.configManager);
-    
     if (!this.configManager) {
-      console.log(`[FORCE DEBUG] No configManager, returning default: ['macos', 'feishu']`);
-      return ['macos', 'feishu']; // 强制包含飞书后端进行测试
+      return ['macos', 'feishu'];
     }
     
     const backends = [];
     const config = this.configManager.getConfig();
-    console.log(`[FORCE DEBUG] Full config:`, JSON.stringify(config, null, 2));
     
     if (config.backends) {
-      console.log(`[FORCE DEBUG] Checking backends...`);
       if (config.backends.email && config.backends.email.enabled) {
         backends.push('email');
-        console.log(`[FORCE DEBUG] Added email backend`);
       }
       if (config.backends.webhook && config.backends.webhook.enabled) {
         backends.push('webhook');
-        console.log(`[FORCE DEBUG] Added webhook backend`);
       }
       if (config.backends.slack && config.backends.slack.enabled) {
         backends.push('slack');
-        console.log(`[FORCE DEBUG] Added slack backend`);
       }
       if (config.backends.macos && config.backends.macos.enabled) {
         backends.push('macos');
-        console.log(`[FORCE DEBUG] Added macos backend`);
       }
       if (config.backends.feishu && config.backends.feishu.enabled) {
         backends.push('feishu');
-        console.log(`[FORCE DEBUG] Added feishu backend`);
-      } else {
-        console.log(`[FORCE DEBUG] Feishu backend not added - enabled:`, config.backends.feishu?.enabled);
-        console.log(`[FORCE DEBUG] Feishu config:`, JSON.stringify(config.backends.feishu, null, 2));
       }
-    } else {
-      console.log(`[FORCE DEBUG] No backends config found`);
     }
     
-    const result = backends.length > 0 ? backends : ['macos', 'feishu'];
-    console.log(`[FORCE DEBUG] Final available backends:`, result);
-    return result;
+    return backends.length > 0 ? backends : ['macos', 'feishu'];
   }
 
   async handleRequest(request) {
