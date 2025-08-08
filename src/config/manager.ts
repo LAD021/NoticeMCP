@@ -5,11 +5,14 @@
 
 // Type declarations for Node.js globals
 declare const process: any;
-declare const require: any;
 
-// Dynamic imports for Node.js modules
-const fs = require('fs');
-const path = require('path');
+// ES module imports
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * 简单的TOML解析器
@@ -250,7 +253,7 @@ export class ConfigManager {
   private configPath: string;
   
   private constructor(configPath?: string) {
-    this.configPath = configPath || path.join(process.cwd(), 'config.toml');
+    this.configPath = configPath || join(process.cwd(), 'config.toml');
     this.config = this.loadConfig();
   }
   
@@ -269,12 +272,7 @@ export class ConfigManager {
    */
   private loadConfig(): NoticeConfig {
     try {
-      if (!fs.existsSync(this.configPath)) {
-        console.warn(`配置文件不存在: ${this.configPath}，使用默认配置`);
-        return this.getDefaultConfig();
-      }
-      
-      const content = fs.readFileSync(this.configPath, 'utf8');
+      const content = readFileSync(this.configPath, 'utf8');
       const parsedConfig = SimpleTomlParser.parse(content);
       
       // 合并默认配置和用户配置

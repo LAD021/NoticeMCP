@@ -13,18 +13,83 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// 类型声明
+interface MCPRequest {
+  method: string;
+  params?: any;
+  id?: string | number;
+}
+
+interface MCPResponse {
+  jsonrpc: string;
+  id: string | number | null;
+  result?: any;
+  error?: {
+    code: number;
+    message: string;
+  };
+}
+
+interface Tool {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: string;
+    properties: Record<string, any>;
+    required: string[];
+  };
+}
+
+interface NotificationArgs {
+  title: string;
+  message: string;
+}
+
+interface BackendConfig {
+  enabled?: boolean;
+  webhook?: string[];
+  secret?: string;
+  atAll?: boolean;
+  atUserIds?: string[];
+  sound?: string;
+  subtitle?: string;
+  appIcon?: string;
+  contentImage?: string;
+  open?: string;
+  wait?: boolean;
+  timeout?: number | false;
+}
+
+// ConfigManager类型将从导入的模块中获取
+
+interface NotificationResult {
+  success: boolean;
+  backend: string;
+  timestamp: string;
+  messageId?: string;
+  error?: string;
+  platform?: string;
+  results?: any[];
+  successCount?: number;
+  failureCount?: number;
+  webhookCount?: number;
+  status?: string;
+  note?: string;
+  sound?: string;
+  timeout?: number | false;
+}
+
 // 配置管理器全局变量
-let configManager = null;
+let configManager: any = null;
 
 // 异步加载配置
-async function loadConfig() {
+async function loadConfig(): Promise<any> {
   try {
     const { ConfigManager } = await import('./src/config/manager.js');
-    configManager = new ConfigManager();
-    await configManager.loadConfig();
+    configManager = ConfigManager.getInstance();
     console.error('📋 配置文件已加载:', configManager.getConfigSummary());
     return configManager;
-  } catch (error) {
+  } catch (error: any) {
     console.error('⚠️  配置文件加载失败，使用默认配置:', error.message);
     return null;
   }
@@ -32,7 +97,10 @@ async function loadConfig() {
 
 // 简化的MCP协议处理
 class SimpleMCPServer {
-  constructor(configManager = null) {
+  private configManager: any;
+  public tools: Tool[];
+
+  constructor(configManager: any = null) {
     this.configManager = configManager;
     this.tools = [
       {
@@ -56,7 +124,7 @@ class SimpleMCPServer {
     ];
   }
 
-  async handleRequest(request) {
+  async handleRequest(request: MCPRequest): Promise<any> {
     const { method, params } = request;
 
     switch (method) {
@@ -85,21 +153,19 @@ class SimpleMCPServer {
     }
   }
 
-  async handleToolCall(params) {
+  async handleToolCall(params: any): Promise<any> {
     const { name, arguments: args } = params;
 
     switch (name) {
       case 'send_notification':
         return await this.sendNotification(args);
-      
-
 
       default:
         throw new Error(`未知工具: ${name}`);
     }
   }
 
-  async sendNotification(args) {
+  async sendNotification(args: NotificationArgs): Promise<any> {
     // 明确忽略backend参数，只提取需要的参数
     const { title, message } = args;
     
@@ -111,9 +177,9 @@ class SimpleMCPServer {
     return await this.sendToAllEnabledBackends(title, message);
   }
 
-  async sendToAllEnabledBackends(title, message) {
+  async sendToAllEnabledBackends(title: string, message: string): Promise<any> {
     const availableBackends = ['macos', 'feishu'];
-    const enabledBackends = [];
+    const enabledBackends: string[] = [];
     
     // 检查哪些后端是启用的
     for (const backendName of availableBackends) {
@@ -150,13 +216,13 @@ class SimpleMCPServer {
       };
     }
     
-    const results = [];
+    const results: NotificationResult[] = [];
     
     // 并行发送到所有启用的后端
-    const promises = enabledBackends.map(async (backendName) => {
+    const promises = enabledBackends.map(async (backendName): Promise<NotificationResult> => {
       try {
         // 使用配置文件中的配置
-        let finalConfig = {};
+        let finalConfig: BackendConfig = {};
         if (this.configManager) {
           const backendConfig = this.configManager.getBackendConfig(backendName);
           if (backendConfig) {
@@ -164,7 +230,7 @@ class SimpleMCPServer {
           }
         }
         
-        let result;
+        let result: Partial<NotificationResult>;
         console.log(`🔧 正在发送到 ${backendName} 后端，配置:`, JSON.stringify(finalConfig, null, 2));
         switch (backendName) {
           case 'feishu':
@@ -173,6 +239,8 @@ class SimpleMCPServer {
           case 'macos':
             result = await this.sendMacOS(title, message, finalConfig);
             break;
+          default:
+            throw new Error(`未知后端: ${backendName}`);
         }
         
         return {
@@ -181,7 +249,7 @@ class SimpleMCPServer {
           timestamp: new Date().toISOString(),
           ...result
         };
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ ${backendName} 后端发送失败:`, error.message);
         console.error(`❌ 错误详情:`, error.stack);
         return {
@@ -212,13 +280,7 @@ class SimpleMCPServer {
     };
   }
 
-
-
-
-
-
-
-  async sendFeishu(title, message, config) {
+  async sendFeishu(title: string, message: string, config: BackendConfig): Promise<Partial<NotificationResult>> {
     // 从配置中获取webhook URL数组
     const webhookUrls = config?.webhook || [];
     
@@ -245,7 +307,7 @@ class SimpleMCPServer {
     }
 
     // 构建飞书消息格式
-    const payload = {
+    const payload: any = {
       msg_type: 'interactive',
       card: {
         elements: [
@@ -290,7 +352,7 @@ class SimpleMCPServer {
     }
 
     // 如果有签名密钥，生成签名
-    let headers = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     };
 
@@ -305,7 +367,7 @@ class SimpleMCPServer {
     }
 
     // 并行发送到所有webhook URL
-    const sendPromises = webhookUrls.map(async (webhookUrl, index) => {
+    const sendPromises = webhookUrls.map(async (webhookUrl: string, index: number) => {
       try {
         // 如果是占位符URL，跳过实际发送
         if (webhookUrl.includes('YOUR_WEBHOOK_TOKEN')) {
@@ -342,7 +404,7 @@ class SimpleMCPServer {
           webhookUrl,
           response: result
         };
-      } catch (error) {
+      } catch (error: any) {
         console.error(`[FEISHU] webhook ${index + 1} 发送失败: ${error.message}`);
         return {
           success: false,
@@ -375,18 +437,18 @@ class SimpleMCPServer {
         failureCount,
         timestamp: new Date().toISOString()
       };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`飞书发送失败: ${error.message}`);
     }
   }
 
-  async sendMacOS(title, message, config = {}) {
+  async sendMacOS(title: string, message: string, config: BackendConfig = {}): Promise<Partial<NotificationResult>> {
     try {
       console.log('[DEBUG] sendMacOS config:', JSON.stringify(config, null, 2));
       console.log('DEBUG: config.timeout:', config.timeout, 'type:', typeof config.timeout);
       
       // 动态导入 node-notifier
-      let notifier;
+      let notifier: any;
       try {
         const nodeNotifierModule = await import('node-notifier');
         notifier = nodeNotifierModule.default;
@@ -395,7 +457,7 @@ class SimpleMCPServer {
       }
       
       // 构建 node-notifier 选项
-      const notificationOptions = {
+      const notificationOptions: any = {
         title: title,
         message: message,
         sound: config.sound || true, // true 表示使用默认声音
@@ -426,8 +488,8 @@ class SimpleMCPServer {
       console.log(`[MacOS通知] 发送通知:`, notificationOptions);
       
       // 使用 Promise 包装 node-notifier 的回调
-      await new Promise((resolve, reject) => {
-        notifier.notify(notificationOptions, (err, response) => {
+      await new Promise<void>((resolve, reject) => {
+        notifier.notify(notificationOptions, (err: any, response: any) => {
           if (err) {
             reject(err);
           } else {
@@ -444,7 +506,7 @@ class SimpleMCPServer {
         timeout: config.timeout !== undefined ? config.timeout : false
       };
       
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`MacOS通知发送失败: ${error.message}`);
     }
   }
@@ -452,16 +514,18 @@ class SimpleMCPServer {
 
 // STDIO MCP 协议处理
 class StdioMCPTransport {
-  constructor(server) {
+  private server: SimpleMCPServer;
+
+  constructor(server: SimpleMCPServer) {
     this.server = server;
     this.setupStdio();
   }
 
-  setupStdio() {
+  setupStdio(): void {
     process.stdin.setEncoding('utf8');
     
     let buffer = '';
-    process.stdin.on('data', (chunk) => {
+    process.stdin.on('data', (chunk: string) => {
       buffer += chunk;
       
       // 处理完整的JSON-RPC消息
@@ -482,21 +546,21 @@ class StdioMCPTransport {
     });
   }
 
-  async handleMessage(message) {
-    let request = null;
+  async handleMessage(message: string): Promise<void> {
+    let request: MCPRequest | null = null;
     try {
-      request = JSON.parse(message);
+      request = JSON.parse(message) as MCPRequest;
       const response = await this.server.handleRequest(request);
       
-      const jsonResponse = {
+      const jsonResponse: MCPResponse = {
         jsonrpc: '2.0',
-        id: request.id,
+        id: request.id || null,
         result: response
       };
       
       process.stdout.write(JSON.stringify(jsonResponse) + '\n');
-    } catch (error) {
-      const errorResponse = {
+    } catch (error: any) {
+      const errorResponse: MCPResponse = {
         jsonrpc: '2.0',
         id: request?.id || null,
         error: {
@@ -511,7 +575,7 @@ class StdioMCPTransport {
 }
 
 // 启动服务器
-async function startServer() {
+async function startServer(): Promise<void> {
   console.error('🚀 Notice MCP Server 启动中...');
   
   // 加载配置
