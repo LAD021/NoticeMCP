@@ -359,6 +359,42 @@ this.notificationManager.registerBackend('custom', new CustomBackend());
 }
 ```
 
+## 在Trae AI中使用
+
+要在 Trae AI 中使用此 MCP 服务器，请将以下配置添加到您的 Trae 配置文件中：
+
+**配置文件位置：**
+- **macOS**: `~/Library/Application Support/Trae/trae_config.json`
+- **Windows**: `%APPDATA%\Trae\trae_config.json`
+
+**配置内容：**
+```json
+{
+  "mcpServers": {
+    "notice-mcp": {
+      "command": "node",
+      "args": [
+        "/path/to/your/NoticeMCP/start.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+```
+
+**重要提示：** 请将 `/path/to/your/NoticeMCP/start.js` 替换为您的实际项目路径。
+
+**使用示例：**
+配置完成后，您可以在 Trae AI 中使用以下方式发送通知：
+
+- "发送一个MacOS通知，标题是'任务完成'，内容是'代码编译成功'"
+- "发送邮件通知给admin@company.com，主题'系统警告'，内容'服务器负载过高'"
+- "发送Slack消息到#general频道：'部署完成'"
+
+详细配置指南请参考：[Trae AI 配置指南](./docs/TRAE_SETUP.md)
+
 ## 使用场景
 
 - 🤖 AI模型训练完成通知
