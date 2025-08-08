@@ -84,7 +84,19 @@ function testFeishuWebhook() {
           console.log('\n📋 飞书测试结果:');
           console.log('响应:', JSON.stringify(response, null, 2));
           
-          if (response.result && response.result.success) {
+          // 解析实际的响应内容
+          let testSuccess = false;
+          if (response.result && response.result.content && response.result.content[0]) {
+            try {
+              const resultText = response.result.content[0].text;
+              const resultData = JSON.parse(resultText);
+              testSuccess = resultData.success === true;
+            } catch (parseError) {
+              console.log('解析结果失败:', parseError.message);
+            }
+          }
+          
+          if (testSuccess) {
             console.log('\n✅ 飞书 Webhook 测试成功！');
             console.log('消息已发送到飞书群聊');
           } else {

@@ -3,7 +3,7 @@
     "notice-mcp": {
       "command": "node",
       "args": [
-        "/path/to/your/NoticeMCP/start.js"
+        "/Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js"
       ],
       "env": {
         "NODE_ENV": "production"

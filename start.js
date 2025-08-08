@@ -41,38 +41,81 @@ class SimpleMCPServer {
     this.tools = [
       {
         name: 'send_notification',
-        description: '发送通知消息到指定后端',
+        description: '发送通知消息到所有启用的后端',
         inputSchema: {
           type: 'object',
           properties: {
             title: { type: 'string', description: '通知标题' },
             message: { type: 'string', description: '通知内容' },
-            backend: { type: 'string', enum: availableBackends, description: '通知后端类型' },
-            config: { type: 'object', description: '后端特定配置' }
+            config: { type: 'object', description: '后端特定配置（可选）' }
           },
-          required: ['title', 'message', 'backend']
+          required: ['title', 'message']
+        }
+      },
+      {
+        name: 'send_dual_notification',
+        description: '同时发送通知到 macOS 和飞书后端（使用配置文件中的设置）',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: '通知标题' },
+            message: { type: 'string', description: '通知内容' },
+            config: {
+              type: 'object',
+              description: '可选的额外配置参数（会覆盖配置文件中的设置）'
+            }
+          },
+          required: ['title', 'message']
         }
       }
     ];
   }
   
   getAvailableBackends() {
+    console.log(`[FORCE DEBUG] getAvailableBackends called`);
+    console.log(`[FORCE DEBUG] configManager exists:`, !!this.configManager);
+    
     if (!this.configManager) {
-      return ['macos']; // 默认只支持 macOS
+      console.log(`[FORCE DEBUG] No configManager, returning default: ['macos', 'feishu']`);
+      return ['macos', 'feishu']; // 强制包含飞书后端进行测试
     }
     
     const backends = [];
     const config = this.configManager.getConfig();
+    console.log(`[FORCE DEBUG] Full config:`, JSON.stringify(config, null, 2));
     
     if (config.backends) {
-      if (config.backends.email && config.backends.email.enabled) backends.push('email');
-      if (config.backends.webhook && config.backends.webhook.enabled) backends.push('webhook');
-      if (config.backends.slack && config.backends.slack.enabled) backends.push('slack');
-      if (config.backends.macos && config.backends.macos.enabled) backends.push('macos');
-      if (config.backends.feishu && config.backends.feishu.enabled) backends.push('feishu');
+      console.log(`[FORCE DEBUG] Checking backends...`);
+      if (config.backends.email && config.backends.email.enabled) {
+        backends.push('email');
+        console.log(`[FORCE DEBUG] Added email backend`);
+      }
+      if (config.backends.webhook && config.backends.webhook.enabled) {
+        backends.push('webhook');
+        console.log(`[FORCE DEBUG] Added webhook backend`);
+      }
+      if (config.backends.slack && config.backends.slack.enabled) {
+        backends.push('slack');
+        console.log(`[FORCE DEBUG] Added slack backend`);
+      }
+      if (config.backends.macos && config.backends.macos.enabled) {
+        backends.push('macos');
+        console.log(`[FORCE DEBUG] Added macos backend`);
+      }
+      if (config.backends.feishu && config.backends.feishu.enabled) {
+        backends.push('feishu');
+        console.log(`[FORCE DEBUG] Added feishu backend`);
+      } else {
+        console.log(`[FORCE DEBUG] Feishu backend not added - enabled:`, config.backends.feishu?.enabled);
+        console.log(`[FORCE DEBUG] Feishu config:`, JSON.stringify(config.backends.feishu, null, 2));
+      }
+    } else {
+      console.log(`[FORCE DEBUG] No backends config found`);
     }
     
-    return backends.length > 0 ? backends : ['macos'];
+    const result = backends.length > 0 ? backends : ['macos', 'feishu'];
+    console.log(`[FORCE DEBUG] Final available backends:`, result);
+    return result;
   }
 
   async handleRequest(request) {
@@ -110,6 +153,22 @@ class SimpleMCPServer {
     switch (name) {
       case 'send_notification':
         return await this.sendNotification(args);
+      
+      case 'send_dual_notification':
+        const result = await this.sendDualNotification(args.title, args.message, args.config || {});
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: result.success,
+              message: result.success ? 
+                `双后端通知发送完成 (${result.successCount}/${result.totalBackends})` : 
+                '双后端通知发送失败',
+              timestamp: new Date().toISOString(),
+              ...result
+            }, null, 2)
+          }]
+        };
 
       default:
         throw new Error(`未知工具: ${name}`);
@@ -117,66 +176,105 @@ class SimpleMCPServer {
   }
 
   async sendNotification(args) {
-    const { title, message, backend, config = {} } = args;
+    const { title, message, config = {} } = args;
     
-    // 合并配置文件中的配置
-    let finalConfig = { ...config };
-    if (this.configManager) {
-      const backendConfig = this.configManager.getBackendConfig(backend);
-      if (backendConfig) {
-        finalConfig = { ...backendConfig, ...config };
+    // 超级强制输出调试信息
+    console.log(`\n\n🚨🚨🚨 SUPER FORCE DEBUG START 🚨🚨🚨`);
+    console.log(`🔥 NEW SERVER INSTANCE ACTIVE 🔥`);
+    console.log(`\n=== NOTIFICATION DEBUG START ===`);
+    console.log(`[FORCE DEBUG] sendNotification called with:`);
+    console.log(`[FORCE DEBUG] Title: ${title}`);
+    console.log(`[FORCE DEBUG] Message: ${message}`);
+    console.log(`[FORCE DEBUG] Input config:`, JSON.stringify(config, null, 2));
+    console.log(`[FORCE DEBUG] ConfigManager exists:`, !!this.configManager);
+    
+    const results = [];
+    const errors = [];
+    
+    // 获取所有启用的后端
+    const availableBackends = this.getAvailableBackends();
+    console.log(`[FORCE DEBUG] Available backends:`, availableBackends);
+    console.log(`[FORCE DEBUG] Backend count: ${availableBackends.length}`);
+    
+    // 向每个启用的后端发送通知
+    for (const backend of availableBackends) {
+      console.log(`\n[FORCE DEBUG] Processing backend: ${backend}`);
+      try {
+        // 合并配置文件中的配置
+        let finalConfig = { ...config };
+        if (this.configManager) {
+          const backendConfig = this.configManager.getBackendConfig(backend);
+          console.log(`[FORCE DEBUG] Backend config for ${backend}:`, JSON.stringify(backendConfig, null, 2));
+          if (backendConfig) {
+            finalConfig = { ...backendConfig, ...config };
+          }
+        }
+        
+        console.log(`[FORCE DEBUG] Final merged config for ${backend}:`, JSON.stringify(finalConfig, null, 2));
+        
+        let result;
+        console.log(`[FORCE DEBUG] Calling ${backend} backend...`);
+        
+        switch (backend) {
+          case 'email':
+            result = await this.sendEmail(title, message, finalConfig);
+            break;
+          case 'webhook':
+            result = await this.sendWebhook(title, message, finalConfig);
+            break;
+          case 'slack':
+            result = await this.sendSlack(title, message, finalConfig);
+            break;
+          case 'macos':
+            result = await this.sendMacOS(title, message, finalConfig);
+            break;
+          case 'feishu':
+            result = await this.sendFeishu(title, message, finalConfig);
+            break;
+          default:
+            throw new Error(`不支持的后端: ${backend}`);
+        }
+        
+        results.push({
+          backend,
+          success: true,
+          ...result
+        });
+        
+        console.log(`[FORCE DEBUG] ${backend} backend completed successfully`);
+        
+      } catch (error) {
+        console.log(`[FORCE ERROR] Backend ${backend} failed:`, error.message);
+        console.log(`[FORCE ERROR] Full error:`, error);
+        errors.push({
+          backend,
+          success: false,
+          error: error.message
+        });
       }
     }
     
-    try {
-      let result;
-      
-      switch (backend) {
-        case 'email':
-          result = await this.sendEmail(title, message, finalConfig);
-          break;
-        case 'webhook':
-          result = await this.sendWebhook(title, message, finalConfig);
-          break;
-        case 'slack':
-          result = await this.sendSlack(title, message, finalConfig);
-          break;
-        case 'macos':
-          result = await this.sendMacOS(title, message, finalConfig);
-          break;
-        case 'feishu':
-          result = await this.sendFeishu(title, message, finalConfig);
-          break;
-        default:
-          throw new Error(`不支持的后端: ${backend}`);
-      }
-
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            message: '通知发送成功',
-            backend,
-            timestamp: new Date().toISOString(),
-            ...result
-          }, null, 2)
-        }]
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            success: false,
-            error: error.message,
-            backend,
-            timestamp: new Date().toISOString()
-          }, null, 2)
-        }],
-        isError: true
-      };
-    }
+    const hasSuccess = results.length > 0;
+    const hasErrors = errors.length > 0;
+    
+    console.log(`[FORCE DEBUG] Final results:`, results);
+    console.log(`[FORCE DEBUG] Final errors:`, errors);
+    console.log(`=== NOTIFICATION DEBUG END ===\n`);
+    
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: hasSuccess,
+          message: hasSuccess ? 
+            (hasErrors ? `部分通知发送成功 (${results.length}/${results.length + errors.length})` : '所有通知发送成功') :
+            '所有通知发送失败',
+          timestamp: new Date().toISOString(),
+          results,
+          errors: hasErrors ? errors : undefined
+        }, null, 2)
+      }]
+    };
   }
 
   async sendEmail(title, message, config) {
@@ -350,7 +448,9 @@ class SimpleMCPServer {
 
   async sendFeishu(title, message, config = {}) {
     try {
+      console.log(`[DEBUG] sendFeishu called with config:`, JSON.stringify(config, null, 2));
       const webhookUrl = config.webhook_url || config.webhookUrl;
+      console.log(`[DEBUG] webhookUrl found:`, webhookUrl);
       if (!webhookUrl) {
         throw new Error('飞书配置无效，需要提供 webhook_url');
       }
@@ -429,6 +529,95 @@ class SimpleMCPServer {
     } catch (error) {
       throw new Error(`飞书通知发送失败: ${error.message}`);
     }
+  }
+
+  // 代理方法：同时发送到 macOS 和飞书后端
+  async sendDualNotification(title, message, config = {}) {
+    console.log(`[DUAL] 开始双后端通知发送`);
+    console.log(`[DUAL] 标题: ${title}`);
+    console.log(`[DUAL] 消息: ${message}`);
+    console.log(`[DUAL] 输入配置:`, JSON.stringify(config, null, 2));
+    
+    const results = [];
+    const errors = [];
+    
+    // 从配置文件获取 macOS 后端配置
+    let macosConfig = {};
+    if (this.configManager) {
+      const backendConfig = this.configManager.getBackendConfig('macos');
+      if (backendConfig) {
+        macosConfig = { ...backendConfig };
+      }
+    }
+    // 合并用户传入的配置（如果有）
+    macosConfig = { ...macosConfig, ...config };
+    
+    // 从配置文件获取飞书后端配置
+    let feishuConfig = {};
+    if (this.configManager) {
+      const backendConfig = this.configManager.getBackendConfig('feishu');
+      if (backendConfig) {
+        feishuConfig = { ...backendConfig };
+      }
+    }
+    // 合并用户传入的配置（如果有）
+    feishuConfig = { ...feishuConfig, ...config };
+    
+    console.log(`[DUAL] macOS 配置:`, JSON.stringify(macosConfig, null, 2));
+    console.log(`[DUAL] 飞书配置:`, JSON.stringify(feishuConfig, null, 2));
+    
+    // 发送到 macOS
+    try {
+      console.log(`[DUAL] 正在发送到 macOS...`);
+      const macosResult = await this.sendMacOS(title, message, macosConfig);
+      results.push({
+        backend: 'macos',
+        success: true,
+        ...macosResult
+      });
+      console.log(`[DUAL] macOS 发送成功`);
+    } catch (error) {
+      console.log(`[DUAL] macOS 发送失败:`, error.message);
+      errors.push({
+        backend: 'macos',
+        success: false,
+        error: error.message
+      });
+    }
+    
+    // 发送到飞书
+    try {
+      console.log(`[DUAL] 正在发送到飞书...`);
+      const feishuResult = await this.sendFeishu(title, message, feishuConfig);
+      results.push({
+        backend: 'feishu',
+        success: true,
+        ...feishuResult
+      });
+      console.log(`[DUAL] 飞书发送成功`);
+    } catch (error) {
+      console.log(`[DUAL] 飞书发送失败:`, error.message);
+      errors.push({
+        backend: 'feishu',
+        success: false,
+        error: error.message
+      });
+    }
+    
+    const hasSuccess = results.length > 0;
+    const hasErrors = errors.length > 0;
+    
+    console.log(`[DUAL] 发送完成 - 成功: ${results.length}, 失败: ${errors.length}`);
+    
+    return {
+      messageId: `dual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      totalBackends: 2,
+      successCount: results.length,
+      errorCount: errors.length,
+      results: results,
+      errors: hasErrors ? errors : undefined,
+      success: hasSuccess
+    };
   }
 }
 
