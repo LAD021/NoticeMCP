@@ -112,13 +112,16 @@ class SimpleMCPServer {
   }
 
   async sendToAllEnabledBackends(title, message) {
-    const availableBackends = ['email', 'webhook', 'slack', 'macos'];
+    const availableBackends = ['email', 'webhook', 'slack', 'feishu', 'macos'];
     const enabledBackends = [];
     
     // 检查哪些后端是启用的
     for (const backendName of availableBackends) {
       if (this.configManager && this.configManager.isBackendEnabled(backendName)) {
         enabledBackends.push(backendName);
+        console.log(`✅ 后端 ${backendName} 已启用`);
+      } else {
+        console.log(`❌ 后端 ${backendName} 未启用`);
       }
     }
     
@@ -160,6 +163,9 @@ class SimpleMCPServer {
             break;
           case 'slack':
             result = await this.sendSlack(title, message, finalConfig);
+            break;
+          case 'feishu':
+            result = await this.sendFeishu(title, message, finalConfig);
             break;
           case 'macos':
             result = await this.sendMacOS(title, message, finalConfig);
@@ -298,6 +304,120 @@ class SimpleMCPServer {
       };
     } catch (error) {
       throw new Error(`Slack发送失败: ${error.message}`);
+    }
+  }
+
+  async sendFeishu(title, message, config) {
+    // 从配置中获取webhook URL
+    const webhookUrl = config?.webhooks?.main || config?.webhookUrl;
+    
+    if (!config || !webhookUrl) {
+      throw new Error('飞书配置无效，需要提供webhooks.main或webhookUrl');
+    }
+
+    if (!webhookUrl.includes('open.feishu.cn')) {
+      throw new Error('飞书webhookUrl格式无效');
+    }
+
+    // 如果是占位符URL，返回模拟响应
+    if (webhookUrl.includes('YOUR_WEBHOOK_TOKEN')) {
+      return {
+        messageId: `feishu-${Date.now()}`,
+        platform: 'feishu',
+        status: 'simulated',
+        note: '使用占位符URL，实际未发送到飞书'
+      };
+    }
+
+    // 构建飞书消息格式
+    const payload = {
+      msg_type: 'interactive',
+      card: {
+        elements: [
+          {
+            tag: 'div',
+            text: {
+              content: `**${title}**\n\n${message}`,
+              tag: 'lark_md'
+            }
+          }
+        ],
+        header: {
+          title: {
+            content: title,
+            tag: 'plain_text'
+          },
+          template: 'blue'
+        }
+      }
+    };
+
+    // 添加@功能
+    if (config.atAll) {
+      payload.card.elements.push({
+        tag: 'div',
+        text: {
+          content: '<at user_id="all">所有人</at>',
+          tag: 'lark_md'
+        }
+      });
+    }
+
+    if (config.atUserIds && config.atUserIds.length > 0) {
+      const atUsers = config.atUserIds.map(userId => `<at user_id="${userId}"></at>`).join(' ');
+      payload.card.elements.push({
+        tag: 'div',
+        text: {
+          content: atUsers,
+          tag: 'lark_md'
+        }
+      });
+    }
+
+    // 如果有签名密钥，生成签名
+    let headers = {
+      'Content-Type': 'application/json'
+    };
+
+    if (config.secret) {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const stringToSign = `${timestamp}\n${config.secret}`;
+      const crypto = await import('crypto');
+      const sign = crypto.createHmac('sha256', stringToSign).digest('base64');
+      
+      payload.timestamp = timestamp;
+      payload.sign = sign;
+    }
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`飞书API错误: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        throw new Error(`飞书发送失败: ${result.msg}`);
+      }
+
+      console.error(`[FEISHU] 消息已发送`);
+      console.error(`[FEISHU] 标题: ${title}`);
+
+      return {
+        messageId: `feishu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        platform: 'feishu',
+        response: result,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      throw new Error(`飞书发送失败: ${error.message}`);
     }
   }
 

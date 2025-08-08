@@ -161,7 +161,18 @@ export interface NoticeConfig {
       default_icon_url: string;
       workspaces: Record<string, string>;
     };
-    
+
+    feishu: {
+      enabled: boolean;
+      default_at_all: boolean;
+      webhooks: Record<string, string>;
+      secrets: Record<string, string>;
+      mentions: {
+        default_at_users: string[];
+        admin_at_users: string[];
+      };
+    };
+
     macos: {
       enabled: boolean;
       default_sound: string;
@@ -328,6 +339,16 @@ export class ConfigManager {
           default_icon_emoji: ':robot_face:',
           default_icon_url: '',
           workspaces: {}
+        },
+        feishu: {
+          enabled: false,
+          default_at_all: false,
+          webhooks: {},
+          secrets: {},
+          mentions: {
+            default_at_users: [],
+            admin_at_users: []
+          }
         },
         macos: {
           enabled: true,
