@@ -170,8 +170,6 @@ class SimpleMCPServer {
     const { title, message } = args;
     
     console.log('📤 发送通知到所有启用的后端');
-    console.log('🔍 Debug - sendNotification args:', JSON.stringify(args, null, 2));
-    console.log('🔍 Debug - 提取的参数 - title:', title, 'message:', message);
     
     // 始终发送到所有启用的后端
     return await this.sendToAllEnabledBackends(title, message);
@@ -183,13 +181,8 @@ class SimpleMCPServer {
     
     // 检查哪些后端是启用的
     for (const backendName of availableBackends) {
-      console.log(`🔍 检查后端 ${backendName}`);
-      console.log(`🔍 configManager 存在:`, !!this.configManager);
       if (this.configManager) {
         const isEnabled = this.configManager.isBackendEnabled(backendName);
-        console.log(`🔍 ${backendName} isBackendEnabled 返回:`, isEnabled);
-        const backendConfig = this.configManager.getBackendConfig(backendName);
-        console.log(`🔍 ${backendName} 配置:`, JSON.stringify(backendConfig, null, 2));
         
         if (isEnabled) {
           enabledBackends.push(backendName);
@@ -231,7 +224,6 @@ class SimpleMCPServer {
         }
         
         let result: Partial<NotificationResult>;
-        console.log(`🔧 正在发送到 ${backendName} 后端，配置:`, JSON.stringify(finalConfig, null, 2));
         switch (backendName) {
           case 'feishu':
             result = await this.sendFeishu(title, message, finalConfig);
@@ -280,9 +272,19 @@ class SimpleMCPServer {
     };
   }
 
-  async sendFeishu(title: string, message: string, config: BackendConfig): Promise<Partial<NotificationResult>> {
-    // 从配置中获取webhook URL数组
-    const webhookUrls = config?.webhook || [];
+  async sendFeishu(title: string, message: string, config: any): Promise<Partial<NotificationResult>> {
+    // 从配置中获取webhook URL - 支持多种格式
+    let webhookUrls: string[] = [];
+    if (config?.webhook && Array.isArray(config.webhook)) {
+      // 格式1：webhook 数组
+      webhookUrls = config.webhook;
+    } else if (config?.webhooks && Array.isArray(config.webhooks)) {
+      // 格式2：webhooks 数组
+      webhookUrls = config.webhooks;
+    } else if (config?.webhooks && typeof config.webhooks === 'object') {
+      // 格式3：webhooks 对象
+      webhookUrls = Object.values(config.webhooks);
+    }
     
     if (!config || !Array.isArray(webhookUrls) || webhookUrls.length === 0) {
       throw new Error('飞书配置无效，需要提供有效的webhook数组');
@@ -444,8 +446,6 @@ class SimpleMCPServer {
 
   async sendMacOS(title: string, message: string, config: BackendConfig = {}): Promise<Partial<NotificationResult>> {
     try {
-      console.log('[DEBUG] sendMacOS config:', JSON.stringify(config, null, 2));
-      console.log('DEBUG: config.timeout:', config.timeout, 'type:', typeof config.timeout);
       
       // 动态导入 node-notifier
       let notifier: any;
@@ -465,9 +465,6 @@ class SimpleMCPServer {
         timeout: config.timeout !== undefined ? config.timeout : false // false 表示常驻通知
       };
       
-      console.log('[DEBUG] notificationOptions.timeout:', notificationOptions.timeout, 'type:', typeof notificationOptions.timeout);
-      console.log('[DEBUG] config.timeout:', config.timeout);
-      
       // 添加可选参数
       if (config.subtitle) {
         notificationOptions.subtitle = config.subtitle;
@@ -485,15 +482,12 @@ class SimpleMCPServer {
         notificationOptions.open = config.open;
       }
       
-      console.log(`[MacOS通知] 发送通知:`, notificationOptions);
-      
       // 使用 Promise 包装 node-notifier 的回调
       await new Promise<void>((resolve, reject) => {
         notifier.notify(notificationOptions, (err: any, response: any) => {
           if (err) {
             reject(err);
           } else {
-            console.log(`[MacOS通知] 通知响应:`, response);
             resolve();
           }
         });

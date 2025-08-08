@@ -39,7 +39,7 @@ class MCPTester {
     this.log('启动MCP服务器...', 'info');
     
     return new Promise((resolve, reject) => {
-      this.serverProcess = spawn('node', ['start.js'], {
+      this.serverProcess = spawn('npx', ['tsx', 'start.ts'], {
         cwd: projectRoot,
         stdio: ['pipe', 'pipe', 'pipe']
       });

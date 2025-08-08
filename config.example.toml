@@ -9,7 +9,7 @@
 # [feishu]
 # enabled=true
 # 支持配置多个webhook URL，可同时发送到多个飞书群
-# webhook = [
+# webhooks = [
 #     "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN_HERE",
 #     "https://open.feishu.cn/open-apis/bot/v2/hook/ANOTHER_WEBHOOK_TOKEN_HERE"
 # ]

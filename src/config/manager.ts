@@ -24,12 +24,14 @@ class SimpleTomlParser {
     const lines = content.split('\n');
     let currentSection: any = result;
     let currentPath: string[] = [];
+    let i = 0;
     
-    for (let line of lines) {
-      line = line.trim();
+    while (i < lines.length) {
+      let line = lines[i].trim();
       
       // 跳过空行和注释
       if (!line || line.startsWith('#')) {
+        i++;
         continue;
       }
       
@@ -48,17 +50,37 @@ class SimpleTomlParser {
           }
           currentSection = currentSection[part];
         }
+        i++;
         continue;
       }
       
       // 处理键值对
       const equalIndex = line.indexOf('=');
       if (equalIndex === -1) {
+        i++;
         continue;
       }
       
       const key = line.slice(0, equalIndex).trim();
-      const valueStr = line.slice(equalIndex + 1).trim();
+      let valueStr = line.slice(equalIndex + 1).trim();
+      
+      // 处理多行数组
+      if (valueStr.startsWith('[') && !valueStr.endsWith(']')) {
+        // 多行数组，需要读取后续行
+        let arrayContent = valueStr;
+        i++;
+        while (i < lines.length) {
+          const nextLine = lines[i].trim();
+          arrayContent += ' ' + nextLine;
+          i++;
+          if (nextLine.endsWith(']')) {
+            break;
+          }
+        }
+        valueStr = arrayContent;
+      } else {
+        i++;
+      }
       
       currentSection[key] = this.parseValue(valueStr);
     }
@@ -273,11 +295,28 @@ export class ConfigManager {
   private loadConfig(): NoticeConfig {
     try {
       const content = readFileSync(this.configPath, 'utf8');
+      // 解析TOML配置
       const parsedConfig = SimpleTomlParser.parse(content);
       
       // 合并默认配置和用户配置
       const defaultConfig = this.getDefaultConfig();
-      return this.mergeConfig(defaultConfig, parsedConfig);
+      
+      // 将用户配置转换为正确的结构
+      const structuredUserConfig: any = {
+        backends: {}
+      };
+      
+      // 将顶级的后端配置移动到backends下
+      for (const [key, value] of Object.entries(parsedConfig)) {
+        if (['feishu', 'macos', 'email', 'webhook', 'slack'].includes(key)) {
+          (structuredUserConfig.backends as any)[key] = value;
+        } else {
+          (structuredUserConfig as any)[key] = value;
+        }
+      }
+      
+      const mergedConfig = this.mergeConfig(defaultConfig, structuredUserConfig);
+      return mergedConfig;
       
     } catch (error) {
       console.error(`加载配置文件失败: ${error}`);
@@ -434,8 +473,10 @@ export class ConfigManager {
     for (const key in userConfig) {
       if (userConfig.hasOwnProperty(key)) {
         if (typeof userConfig[key] === 'object' && userConfig[key] !== null && !Array.isArray(userConfig[key])) {
+          // 对象类型，递归合并
           result[key] = this.mergeConfig(result[key] || {}, userConfig[key]);
         } else {
+          // 基本类型或数组，直接覆盖
           result[key] = userConfig[key];
         }
       }
