@@ -32,10 +32,12 @@ async function loadConfig() {
 class SimpleMCPServer {
   constructor(configManager = null) {
     this.configManager = configManager;
+    this.startTime = new Date().toISOString(); // 记录服务器启动时间
     
     // 根据配置动态确定可用后端
     const availableBackends = this.getAvailableBackends();
     
+    // 基础工具
     this.tools = [
       {
         name: 'send_notification',
@@ -51,6 +53,40 @@ class SimpleMCPServer {
         }
       }
     ];
+    
+    // 在调试模式下添加调试工具
+    const debugMode = this.isDebugMode();
+    console.log(`[DEBUG] Debug mode: ${debugMode}`);
+    if (debugMode) {
+      console.log('[DEBUG] Adding get_server_info tool');
+      this.tools.push({
+        name: 'get_server_info',
+        description: '获取服务器启动信息（仅调试模式）',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: []
+        }
+      });
+    }
+    console.log(`[DEBUG] Total tools: ${this.tools.length}`);
+    console.log(`[DEBUG] Tool names: ${this.tools.map(t => t.name).join(', ')}`);
+  }
+  
+  // 检测是否为调试模式
+  isDebugMode() {
+    // 检查环境变量或配置文件中的调试设置
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
+      return true;
+    }
+    
+    // 检查配置文件中的调试设置
+    if (this.configManager) {
+      const config = this.configManager.getConfig();
+      return config.server?.debug === true;
+    }
+    
+    return false;
   }
   
   getAvailableBackends() {
@@ -122,10 +158,53 @@ class SimpleMCPServer {
     switch (name) {
       case 'send_notification':
         return await this.sendNotification(args);
+      
+      case 'get_server_info':
+        return await this.getServerInfo(args);
 
       default:
         throw new Error(`未知工具: ${name}`);
     }
+  }
+  
+  async getServerInfo(args) {
+    const uptime = Date.now() - new Date(this.startTime).getTime();
+    const uptimeSeconds = Math.floor(uptime / 1000);
+    const uptimeMinutes = Math.floor(uptimeSeconds / 60);
+    const uptimeHours = Math.floor(uptimeMinutes / 60);
+    
+    const formatUptime = () => {
+      if (uptimeHours > 0) {
+        return `${uptimeHours}小时${uptimeMinutes % 60}分钟${uptimeSeconds % 60}秒`;
+      } else if (uptimeMinutes > 0) {
+        return `${uptimeMinutes}分钟${uptimeSeconds % 60}秒`;
+      } else {
+        return `${uptimeSeconds}秒`;
+      }
+    };
+    
+    const serverInfo = {
+      startTime: this.startTime,
+      uptime: formatUptime(),
+      uptimeMs: uptime,
+      debugMode: this.isDebugMode(),
+      availableBackends: this.getAvailableBackends(),
+      nodeEnv: process.env.NODE_ENV || 'unknown',
+      pid: process.pid,
+      memoryUsage: process.memoryUsage(),
+      timestamp: new Date().toISOString()
+    };
+    
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: true,
+          message: '服务器信息获取成功',
+          data: serverInfo
+        }, null, 2)
+      }]
+    };
   }
 
   async sendNotification(args) {
@@ -539,7 +618,11 @@ async function startServer() {
   const transport = new StdioMCPTransport(server);
   
   console.log('✅ Notice MCP Server 已启动，等待连接...');
-  console.log('📋 可用工具: send_notification');
+  console.log(`📋 可用工具: ${server.tools.map(t => t.name).join(', ')}`);
+  
+  if (server.isDebugMode()) {
+    console.log('🐛 调试模式已启用');
+  }
   
   const availableBackends = server.getAvailableBackends();
   console.log(`🔧 支持后端: ${availableBackends.join(', ')}`);
