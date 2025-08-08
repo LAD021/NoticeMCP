@@ -2,6 +2,9 @@
 
 // 自包含的MCP服务器实现，不依赖外部SDK
 
+// 导入配置管理器
+import { ConfigManager } from './config/manager.js';
+
 // Node.js类型声明
 declare const process: {
   stdin: {
@@ -279,6 +282,11 @@ class MacOSBackend implements NotificationBackend {
 
 class NotificationManager {
   private backends: Map<string, NotificationBackend> = new Map();
+  private configManager: ConfigManager;
+
+  constructor(configManager: ConfigManager) {
+    this.configManager = configManager;
+  }
 
   registerBackend(name: string, backend: NotificationBackend): void {
     this.backends.set(name, backend);
@@ -288,7 +296,28 @@ class NotificationManager {
     return Array.from(this.backends.keys());
   }
 
+  getEnabledBackends(): string[] {
+    return Array.from(this.backends.keys()).filter(name => 
+      this.configManager.isBackendEnabled(name)
+    );
+  }
+
   async sendNotification(
+    title: string,
+    message: string,
+    backendName?: string,
+    config?: Record<string, any>
+  ): Promise<NotificationResult | NotificationResult[]> {
+    // 如果指定了后端，只发送到该后端
+    if (backendName) {
+      return await this.sendToSingleBackend(title, message, backendName, config);
+    }
+    
+    // 如果没有指定后端，发送到所有启用的后端
+    return await this.sendToAllEnabledBackends(title, message, config);
+  }
+
+  private async sendToSingleBackend(
     title: string,
     message: string,
     backendName: string,
@@ -299,8 +328,16 @@ class NotificationManager {
       throw new Error(`未找到后端: ${backendName}`);
     }
 
+    if (!this.configManager.isBackendEnabled(backendName)) {
+      throw new Error(`后端 ${backendName} 未启用`);
+    }
+
     try {
-      const result = await backend.send(title, message, config);
+      // 合并配置文件中的后端配置和传入的配置
+      const backendConfig = this.configManager.getBackendConfig(backendName) || {};
+      const mergedConfig = { ...backendConfig, ...config };
+      
+      const result = await backend.send(title, message, mergedConfig);
       return {
         success: true,
         backend: backendName,
@@ -316,18 +353,59 @@ class NotificationManager {
       };
     }
   }
+
+  private async sendToAllEnabledBackends(
+    title: string,
+    message: string,
+    config?: Record<string, any>
+  ): Promise<NotificationResult[]> {
+    const enabledBackends = this.getEnabledBackends();
+    
+    if (enabledBackends.length === 0) {
+      throw new Error('没有启用的后端');
+    }
+
+    const results: NotificationResult[] = [];
+    
+    // 并行发送到所有启用的后端
+    const promises = enabledBackends.map(async (backendName) => {
+      try {
+        return await this.sendToSingleBackend(title, message, backendName, config);
+      } catch (error: any) {
+        return {
+          success: false,
+          backend: backendName,
+          timestamp: new Date().toISOString(),
+          error: error.message || '未知错误'
+        };
+      }
+    });
+
+    const allResults = await Promise.all(promises);
+    results.push(...allResults);
+    
+    console.error(`📤 消息已发送到 ${enabledBackends.length} 个后端: ${enabledBackends.join(', ')}`);
+    
+    return results;
+  }
 }
 
 // 验证函数
 function validateSendNotification(args: any): {
   title: string;
   message: string;
-  backend: string;
+  backend?: string;
   config?: Record<string, any>;
 } {
   const title = validateString(args.title, 'title');
   const message = validateString(args.message, 'message');
-  const backend = validateEnum(args.backend, ['email', 'webhook', 'slack', 'macos'], 'backend');
+  
+  // backend参数现在是可选的
+  let backend: string | undefined;
+  if (args.backend) {
+    backend = validateEnum(args.backend, ['email', 'webhook', 'slack', 'macos'], 'backend');
+  }
+  
   return { title, message, backend, config: args.config };
 }
 
@@ -352,11 +430,14 @@ interface MCPResponse {
 
 class NoticeMCPServer {
   private notificationManager: NotificationManager;
+  private configManager: ConfigManager;
 
   constructor() {
-    this.notificationManager = new NotificationManager();
+    this.configManager = ConfigManager.getInstance();
+    this.notificationManager = new NotificationManager(this.configManager);
     this.setupBackends();
     this.setupStdio();
+    console.error(`📋 ${this.configManager.getConfigSummary()}`);
   }
 
   private setupBackends() {
@@ -469,7 +550,7 @@ class NoticeMCPServer {
                     additionalProperties: true
                   }
                 },
-                required: ['title', 'message', 'backend']
+                required: ['title', 'message']
               }
             },
             {

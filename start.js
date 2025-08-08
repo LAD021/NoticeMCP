@@ -37,25 +37,20 @@ class SimpleMCPServer {
     this.tools = [
       {
         name: 'send_notification',
-        description: '发送通知消息到指定后端',
+        description: '发送通知消息到所有可用后端',
         inputSchema: {
           type: 'object',
           properties: {
-            title: { type: 'string', description: '通知标题' },
-            message: { type: 'string', description: '通知内容' },
-            backend: { type: 'string', enum: ['email', 'webhook', 'slack', 'macos'], description: '通知后端类型' },
-            config: { type: 'object', description: '后端特定配置' }
+            title: {
+              type: 'string',
+              description: '通知标题'
+            },
+            message: {
+              type: 'string', 
+              description: '通知内容'
+            }
           },
-          required: ['title', 'message', 'backend']
-        }
-      },
-      {
-        name: 'get_backends',
-        description: '获取所有可用的通知后端',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false
+          required: ['title', 'message']
         }
       }
     ];
@@ -97,22 +92,7 @@ class SimpleMCPServer {
       case 'send_notification':
         return await this.sendNotification(args);
       
-      case 'get_backends':
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              backends: ['email', 'webhook', 'slack', 'macos'],
-              count: 4,
-              descriptions: {
-                email: '邮件通知后端 - 通过SMTP发送邮件',
-                webhook: 'Webhook通知后端 - 发送HTTP请求到指定URL',
-                slack: 'Slack通知后端 - 通过Webhook发送Slack消息',
-                macos: 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知'
-              }
-            }, null, 2)
-          }]
-        };
+
 
       default:
         throw new Error(`未知工具: ${name}`);
@@ -120,63 +100,105 @@ class SimpleMCPServer {
   }
 
   async sendNotification(args) {
-    const { title, message, backend, config = {} } = args;
+    // 明确忽略backend参数，只提取需要的参数
+    const { title, message } = args;
     
-    // 合并配置文件中的配置
-    let finalConfig = { ...config };
-    if (this.configManager) {
-      const backendConfig = this.configManager.getBackendConfig(backend);
-      if (backendConfig) {
-        finalConfig = { ...backendConfig, ...config };
+    console.log('📤 发送通知到所有启用的后端');
+    console.log('🔍 Debug - sendNotification args:', JSON.stringify(args, null, 2));
+    console.log('🔍 Debug - 提取的参数 - title:', title, 'message:', message);
+    
+    // 始终发送到所有启用的后端
+    return await this.sendToAllEnabledBackends(title, message);
+  }
+
+  async sendToAllEnabledBackends(title, message) {
+    const availableBackends = ['email', 'webhook', 'slack', 'macos'];
+    const enabledBackends = [];
+    
+    // 检查哪些后端是启用的
+    for (const backendName of availableBackends) {
+      if (this.configManager && this.configManager.isBackendEnabled(backendName)) {
+        enabledBackends.push(backendName);
       }
     }
     
-    try {
-      let result;
-      
-      switch (backend) {
-        case 'email':
-          result = await this.sendEmail(title, message, finalConfig);
-          break;
-        case 'webhook':
-          result = await this.sendWebhook(title, message, finalConfig);
-          break;
-        case 'slack':
-          result = await this.sendSlack(title, message, finalConfig);
-          break;
-        case 'macos':
-          result = await this.sendMacOS(title, message, finalConfig);
-          break;
-        default:
-          throw new Error(`不支持的后端: ${backend}`);
-      }
-
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            message: '通知发送成功',
-            backend,
-            timestamp: new Date().toISOString(),
-            ...result
-          }, null, 2)
-        }]
-      };
-    } catch (error) {
+    if (enabledBackends.length === 0) {
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: false,
-            error: error.message,
-            backend,
+            error: '没有启用的后端',
             timestamp: new Date().toISOString()
           }, null, 2)
         }],
         isError: true
       };
     }
+    
+    const results = [];
+    
+    // 并行发送到所有启用的后端
+    const promises = enabledBackends.map(async (backendName) => {
+      try {
+        // 使用配置文件中的配置
+        let finalConfig = {};
+        if (this.configManager) {
+          const backendConfig = this.configManager.getBackendConfig(backendName);
+          if (backendConfig) {
+            finalConfig = { ...backendConfig };
+          }
+        }
+        
+        let result;
+        switch (backendName) {
+          case 'email':
+            result = await this.sendEmail(title, message, finalConfig);
+            break;
+          case 'webhook':
+            result = await this.sendWebhook(title, message, finalConfig);
+            break;
+          case 'slack':
+            result = await this.sendSlack(title, message, finalConfig);
+            break;
+          case 'macos':
+            result = await this.sendMacOS(title, message, finalConfig);
+            break;
+        }
+        
+        return {
+          success: true,
+          backend: backendName,
+          timestamp: new Date().toISOString(),
+          ...result
+        };
+      } catch (error) {
+        return {
+          success: false,
+          backend: backendName,
+          timestamp: new Date().toISOString(),
+          error: error.message
+        };
+      }
+    });
+    
+    const allResults = await Promise.all(promises);
+    results.push(...allResults);
+    
+    console.error(`📤 消息已发送到 ${enabledBackends.length} 个后端: ${enabledBackends.join(', ')}`);
+    
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: true,
+          message: `通知已发送到 ${enabledBackends.length} 个启用的后端`,
+          backends: enabledBackends,
+          results: allResults,
+          timestamp: new Date().toISOString()
+        }, null, 2)
+      }]
+    };
   }
 
   async sendEmail(title, message, config) {
@@ -420,7 +442,7 @@ async function startServer() {
   const transport = new StdioMCPTransport(server);
   
   console.error('✅ Notice MCP Server 已启动，等待连接...');
-  console.error('📋 可用工具: send_notification, get_backends');
+  console.error('📋 可用工具:', server.tools.map(t => t.name).join(', '));
   console.error('🔧 支持后端: email, webhook, slack, macos');
   
   if (config) {
