@@ -90,7 +90,9 @@ class SimpleMCPServer {
   }
   
   getAvailableBackends() {
+    console.log(`[DEBUG] getAvailableBackends called, configManager:`, !!this.configManager);
     if (!this.configManager) {
+      console.log(`[DEBUG] No configManager, returning default backends`);
       return ['macos', 'feishu'];
     }
     
@@ -210,6 +212,7 @@ class SimpleMCPServer {
   async sendNotification(args) {
     console.log('=== SENDNOTIFICATION METHOD CALLED ===');
     console.log('Args:', JSON.stringify(args, null, 2));
+    console.log('ConfigManager exists:', !!this.configManager);
     const { title, message, config = {} } = args;
     
     const results = [];
@@ -615,7 +618,7 @@ async function startServer() {
   const config = await loadConfig();
   
   console.log('[DEBUG] Creating SimpleMCPServer instance...');
-  const server = new SimpleMCPServer(config);
+  const server = new SimpleMCPServer(configManager);
   console.log(`[DEBUG] Server created with ${server.tools.length} tools`);
   const transport = new StdioMCPTransport(server);
   
