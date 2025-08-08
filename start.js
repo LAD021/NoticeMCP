@@ -34,6 +34,10 @@ async function loadConfig() {
 class SimpleMCPServer {
   constructor(configManager = null) {
     this.configManager = configManager;
+    
+    // 根据配置动态确定可用后端
+    const availableBackends = this.getAvailableBackends();
+    
     this.tools = [
       {
         name: 'send_notification',
@@ -43,22 +47,32 @@ class SimpleMCPServer {
           properties: {
             title: { type: 'string', description: '通知标题' },
             message: { type: 'string', description: '通知内容' },
-            backend: { type: 'string', enum: ['email', 'webhook', 'slack', 'macos', 'feishu'], description: '通知后端类型' },
+            backend: { type: 'string', enum: availableBackends, description: '通知后端类型' },
             config: { type: 'object', description: '后端特定配置' }
           },
           required: ['title', 'message', 'backend']
         }
-      },
-      {
-        name: 'get_backends',
-        description: '获取所有可用的通知后端',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false
-        }
       }
     ];
+  }
+  
+  getAvailableBackends() {
+    if (!this.configManager) {
+      return ['macos']; // 默认只支持 macOS
+    }
+    
+    const backends = [];
+    const config = this.configManager.getConfig();
+    
+    if (config.backends) {
+      if (config.backends.email && config.backends.email.enabled) backends.push('email');
+      if (config.backends.webhook && config.backends.webhook.enabled) backends.push('webhook');
+      if (config.backends.slack && config.backends.slack.enabled) backends.push('slack');
+      if (config.backends.macos && config.backends.macos.enabled) backends.push('macos');
+      if (config.backends.feishu && config.backends.feishu.enabled) backends.push('feishu');
+    }
+    
+    return backends.length > 0 ? backends : ['macos'];
   }
 
   async handleRequest(request) {
@@ -96,23 +110,6 @@ class SimpleMCPServer {
     switch (name) {
       case 'send_notification':
         return await this.sendNotification(args);
-      
-      case 'get_backends':
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              backends: ['email', 'webhook', 'slack', 'macos'],
-              count: 4,
-              descriptions: {
-                email: '邮件通知后端 - 通过SMTP发送邮件',
-                webhook: 'Webhook通知后端 - 发送HTTP请求到指定URL',
-                slack: 'Slack通知后端 - 通过Webhook发送Slack消息',
-                macos: 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知'
-              }
-            }, null, 2)
-          }]
-        };
 
       default:
         throw new Error(`未知工具: ${name}`);
@@ -506,13 +503,15 @@ async function startServer() {
   const transport = new StdioMCPTransport(server);
   
   console.error('✅ Notice MCP Server 已启动，等待连接...');
-  console.error('📋 可用工具: send_notification, get_backends');
-  console.error('🔧 支持后端: email, webhook, slack, macos, feishu');
+  console.log('📋 可用工具: send_notification');
+  
+  const availableBackends = server.getAvailableBackends();
+  console.log(`🔧 支持后端: ${availableBackends.join(', ')}`);
   
   if (config) {
-    console.error('⚙️  使用TOML配置文件');
+    console.log('⚙️  使用TOML配置文件');
   } else {
-    console.error('⚙️  使用默认配置');
+    console.log('⚙️  使用默认配置');
   }
 }
 
