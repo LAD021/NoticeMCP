@@ -9,6 +9,7 @@ import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { log } from './src/utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -210,9 +211,11 @@ class SimpleMCPServer {
   }
 
   async sendNotification(args) {
-    console.log('=== SENDNOTIFICATION METHOD CALLED ===');
-    console.log('Args:', JSON.stringify(args, null, 2));
-    console.log('ConfigManager exists:', !!this.configManager);
+    log.mcp.info('SendNotification method called', {
+      args,
+      configManagerExists: !!this.configManager,
+      pid: process.pid
+    });
     const { title, message, config = {} } = args;
     
     const results = [];
@@ -220,75 +223,126 @@ class SimpleMCPServer {
     
     // 获取所有启用的后端
     const availableBackends = this.getAvailableBackends();
-    console.log(`[DEBUG] Available backends: ${availableBackends.join(', ')}`);
+    log.mcp.debug('Available backends', { backends: availableBackends });
     
-    // 向每个启用的后端发送通知
-    for (const backend of availableBackends) {
+    // 使用Promise.allSettled确保所有后端都被处理
+    const backendPromises = availableBackends.map(async (backend) => {
       try {
-        console.log(`[DEBUG] Processing backend: ${backend}`);
+        log.mcp.debug('Processing backend', { backend });
         // 合并配置文件中的配置
         let finalConfig = { ...config };
         if (this.configManager) {
           const backendConfig = this.configManager.getBackendConfig(backend);
-          console.log(`[DEBUG] Backend config for ${backend}:`, JSON.stringify(backendConfig, null, 2));
+          log.mcp.debug('Backend config', { backend, config: backendConfig });
           if (backendConfig) {
             finalConfig = { ...backendConfig, ...config };
           }
         }
-        console.log(`[DEBUG] Final config for ${backend}:`, JSON.stringify(finalConfig, null, 2));
+        log.mcp.debug('Final config', { backend, config: finalConfig });
         
         let result;
         
+        log.mcp.info('Processing backend', { backend: backend.toUpperCase() });
+        
         switch (backend) {
           case 'email':
+            log.mcp.debug('Calling sendEmail', { backend });
             result = await this.sendEmail(title, message, finalConfig);
             break;
           case 'webhook':
+            log.mcp.debug('Calling sendWebhook', { backend });
             result = await this.sendWebhook(title, message, finalConfig);
             break;
           case 'slack':
+            log.mcp.debug('Calling sendSlack', { backend });
             result = await this.sendSlack(title, message, finalConfig);
             break;
           case 'macos':
+            log.mcp.debug('Calling sendMacOS', { backend });
             result = await this.sendMacOS(title, message, finalConfig);
             break;
           case 'feishu':
+            log.mcp.debug('Calling sendFeishu', { backend });
             result = await this.sendFeishu(title, message, finalConfig);
+            log.mcp.debug('sendFeishu returned', { backend, result });
             break;
           default:
             throw new Error(`不支持的后端: ${backend}`);
         }
+
+        log.mcp.info('Backend result', { backend: backend.toUpperCase(), result });
         
-        results.push({
+        const backendResult = {
           backend,
           success: true,
           ...result
-        });
+        };
+        
+        log.mcp.debug('Adding backend to results', { backend, result: backendResult });
+        return { type: 'success', result: backendResult };
         
       } catch (error) {
-        errors.push({
+        log.mcp.error('Backend failed', { backend, error: error.message, stack: error.stack });
+        const errorResult = {
           backend,
           success: false,
           error: error.message
+        };
+        log.mcp.debug('Adding backend to errors', { backend, result: errorResult });
+        return { type: 'error', result: errorResult };
+      }
+    });
+    
+    // 等待所有后端处理完成
+    log.mcp.debug('Waiting for backends to complete', { count: availableBackends.length });
+    const settledResults = await Promise.allSettled(backendPromises);
+    
+    // 处理结果
+    settledResults.forEach((settled, index) => {
+      const backend = availableBackends[index];
+      if (settled.status === 'fulfilled') {
+        const { type, result } = settled.value;
+        if (type === 'success') {
+          results.push(result);
+        } else {
+          errors.push(result);
+        }
+      } else {
+        log.mcp.error('Promise rejected for backend', { backend, reason: settled.reason });
+        errors.push({
+          backend,
+          success: false,
+          error: settled.reason?.message || 'Promise rejected'
         });
       }
-    }
+    });
     
     const hasSuccess = results.length > 0;
     const hasErrors = errors.length > 0;
     
+    const response = {
+      success: hasSuccess,
+      message: hasSuccess ? 
+        (hasErrors ? `部分通知发送成功 (${results.length}/${results.length + errors.length})` : '所有通知发送成功') :
+        '所有通知发送失败',
+      timestamp: new Date().toISOString(),
+      results,
+      errors: errors.length > 0 ? errors : undefined
+    };
+
+    log.mcp.info('Final response summary', {
+      totalBackends: availableBackends.length,
+      successfulResults: results.length,
+      failedResults: errors.length,
+      results,
+      errors,
+      response
+    });
+    
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({
-          success: hasSuccess,
-          message: hasSuccess ? 
-            (hasErrors ? `部分通知发送成功 (${results.length}/${results.length + errors.length})` : '所有通知发送成功') :
-            '所有通知发送失败',
-          timestamp: new Date().toISOString(),
-          results,
-          errors: errors.length > 0 ? errors : undefined
-        }, null, 2)
+        text: JSON.stringify(response, null, 2)
       }]
     };
   }
@@ -464,10 +518,12 @@ class SimpleMCPServer {
 
   async sendFeishu(title, message, config = {}) {
     try {
-      console.log(`[DEBUG] sendFeishu called with config:`, JSON.stringify(config, null, 2));
+      log.debug('Starting Feishu send', { title, message, config });
+      
       const webhookUrl = config.webhook_url || config.webhookUrl;
-      console.log(`[DEBUG] webhookUrl found:`, webhookUrl);
+      log.debug('Extracted webhook URL', { webhookUrl });
       if (!webhookUrl) {
+        log.error('Invalid Feishu config: webhook_url required');
         throw new Error('飞书配置无效，需要提供 webhook_url');
       }
 
@@ -503,16 +559,16 @@ class SimpleMCPServer {
         const timestamp = Math.floor(Date.now() / 1000);
         const crypto = await import('crypto');
         const stringToSign = `${timestamp}\n${config.secret}`;
-        const hmac = crypto.createHmac('sha256', stringToSign);
+        const hmac = crypto.createHmac('sha256', config.secret);
+        hmac.update(stringToSign);
         const sign = hmac.digest('base64');
         
         payload.timestamp = timestamp.toString();
         payload.sign = sign;
+        console.error(`[FEISHU] 添加签名: timestamp=${timestamp}, sign=${sign}`);
       }
 
-      console.log(`[FEISHU] 发送到飞书群聊: ${webhookUrl}`);
-      console.log(`[FEISHU] 标题: ${title}`);
-      console.log(`[FEISHU] 内容: ${message}`);
+      log.info('Sending to Feishu', { webhookUrl, title, message, payload });
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -523,26 +579,38 @@ class SimpleMCPServer {
         body: JSON.stringify(payload)
       });
 
+      log.debug('Feishu response status', { status: response.status, statusText: response.statusText });
+
       if (!response.ok) {
         const errorText = await response.text();
+        log.error('Feishu API error response', { status: response.status, statusText: response.statusText, errorText });
         throw new Error(`飞书API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const result = await response.json();
+      log.debug('Feishu response result', { result });
       
       if (result.code !== 0) {
+        log.error('Feishu returned error code', { code: result.code, message: result.msg });
         throw new Error(`飞书消息发送失败: ${result.msg || '未知错误'}`);
       }
 
-      return {
+      const returnValue = {
         messageId: `feishu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         webhookUrl: webhookUrl,
         hasSecret: !!config.secret,
         atAll: config.atAll,
         atUsersCount: config.atUsers?.length || 0,
-        atMobilesCount: config.atMobiles?.length || 0
+        atMobilesCount: config.atMobiles?.length || 0,
+        feishuResponse: result
       };
-    } catch (error) {
+      
+      log.info('Feishu send success', { returnValue });
+       
+       return returnValue;
+     } catch (error) {
+       log.error('Feishu send failed', { error: error.message, stack: error.stack });
+      
       throw new Error(`飞书通知发送失败: ${error.message}`);
     }
   }
