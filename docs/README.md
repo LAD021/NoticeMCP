@@ -5,8 +5,17 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
 [![MCP](https://img.shields.io/badge/MCP-compatible-orange.svg)](https://modelcontextprotocol.io/)
+[![Version](https://img.shields.io/badge/version-v0.3.0-green.svg)](https://github.com/your-repo/NoticeMCP/releases)
 
 NoticeMCP 是一个强大的通知服务器，通过 MCP (Model Context Protocol) 协议为 AI 助手提供多平台通知能力。支持飞书、macOS、邮件、Slack、Webhook 等多种通知后端，让你的 AI 助手能够主动向你发送重要信息。
+
+## 📦 当前版本：v0.3.0
+
+**v0.3.0 新特性：**
+- ✅ **飞书通知完全支持** - 文本、富文本、卡片消息，@功能，签名验证
+- ✅ **多后端同时发送** - 一次调用可同时发送到多个通知平台
+- ✅ **增强的错误处理** - 详细的发送状态和错误信息反馈
+- ✅ **配置优化** - 更灵活的TOML配置管理
 
 ## ✨ 核心特性
 
