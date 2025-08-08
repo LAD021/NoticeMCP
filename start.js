@@ -122,6 +122,11 @@ class SimpleMCPServer {
         console.log(`✅ 后端 ${backendName} 已启用`);
       } else {
         console.log(`❌ 后端 ${backendName} 未启用`);
+        // 添加调试信息
+        if (this.configManager) {
+          const backendConfig = this.configManager.getBackendConfig(backendName);
+          console.log(`🔍 ${backendName} 配置:`, JSON.stringify(backendConfig, null, 2));
+        }
       }
     }
     
@@ -206,10 +211,10 @@ class SimpleMCPServer {
 
   async sendFeishu(title, message, config) {
     // 从配置中获取webhook URL
-    const webhookUrl = config?.webhooks?.main || config?.webhookUrl;
+    const webhookUrl = config?.webhook?.[0] || config?.webhooks?.main || config?.webhookUrl;
     
     if (!config || !webhookUrl) {
-      throw new Error('飞书配置无效，需要提供webhooks.main或webhookUrl');
+      throw new Error('飞书配置无效，需要提供webhook数组或webhookUrl');
     }
 
     if (!webhookUrl.includes('open.feishu.cn')) {

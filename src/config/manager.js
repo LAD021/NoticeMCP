@@ -21,12 +21,14 @@ class SimpleTomlParser {
     const lines = content.split('\n');
     let currentSection = result;
     let currentSectionPath = [];
+    let i = 0;
 
-    for (let line of lines) {
-      line = line.trim();
+    while (i < lines.length) {
+      let line = lines[i].trim();
       
       // 跳过空行和注释
       if (!line || line.startsWith('#')) {
+        i++;
         continue;
       }
       
@@ -45,6 +47,7 @@ class SimpleTomlParser {
           currentSection = currentSection[part];
           currentSectionPath.push(part);
         }
+        i++;
         continue;
       }
       
@@ -52,10 +55,28 @@ class SimpleTomlParser {
       const equalIndex = line.indexOf('=');
       if (equalIndex > 0) {
         const key = line.substring(0, equalIndex).trim();
-        const valueStr = line.substring(equalIndex + 1).trim();
+        let valueStr = line.substring(equalIndex + 1).trim();
+        
+        // 处理多行数组
+        if (valueStr.startsWith('[') && !valueStr.endsWith(']')) {
+          // 多行数组开始
+          let arrayLines = [valueStr];
+          i++;
+          while (i < lines.length) {
+            const nextLine = lines[i].trim();
+            arrayLines.push(nextLine);
+            if (nextLine.endsWith(']')) {
+              break;
+            }
+            i++;
+          }
+          valueStr = arrayLines.join(' ');
+        }
+        
         const value = this.parseValue(valueStr);
         currentSection[key] = value;
       }
+      i++;
     }
     
     return result;
@@ -192,6 +213,13 @@ class ConfigManager {
               "Morse", "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"
             ]
           }
+        },
+        feishu: {
+          enabled: false,
+          webhook: [],
+          secret: "",
+          atAll: false,
+          atUserIds: []
         }
       },
       templates: {
@@ -280,9 +308,18 @@ class ConfigManager {
   mergeConfig(defaultConfig, userConfig) {
     const result = { ...defaultConfig };
     
+    // 处理后端配置的特殊情况：将平级的后端配置映射到backends下
+    const knownBackends = ['macos', 'feishu', 'email', 'webhook', 'slack'];
+    
     for (const key in userConfig) {
       if (userConfig.hasOwnProperty(key)) {
-        if (typeof userConfig[key] === 'object' && userConfig[key] !== null && !Array.isArray(userConfig[key])) {
+        if (knownBackends.includes(key)) {
+          // 将后端配置放到backends下
+          if (!result.backends) {
+            result.backends = {};
+          }
+          result.backends[key] = { ...result.backends[key], ...userConfig[key] };
+        } else if (typeof userConfig[key] === 'object' && userConfig[key] !== null && !Array.isArray(userConfig[key])) {
           result[key] = this.mergeConfig(result[key] || {}, userConfig[key]);
         } else {
           result[key] = userConfig[key];
@@ -326,8 +363,8 @@ class ConfigManager {
    */
   isBackendEnabled(backend) {
     const backendConfig = this.getBackendConfig(backend);
-    // 如果没有配置或没有enable字段，默认为false
-    return backendConfig && backendConfig.enable === true;
+    // 如果没有配置或没有enabled字段，默认为false
+    return backendConfig && backendConfig.enabled === true;
   }
 
   /**
