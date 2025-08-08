@@ -43,7 +43,7 @@ class SimpleMCPServer {
           properties: {
             title: { type: 'string', description: '通知标题' },
             message: { type: 'string', description: '通知内容' },
-            backend: { type: 'string', enum: ['email', 'webhook', 'slack', 'macos'], description: '通知后端类型' },
+            backend: { type: 'string', enum: ['email', 'webhook', 'slack', 'macos', 'feishu'], description: '通知后端类型' },
             config: { type: 'object', description: '后端特定配置' }
           },
           required: ['title', 'message', 'backend']
@@ -146,6 +146,9 @@ class SimpleMCPServer {
           break;
         case 'macos':
           result = await this.sendMacOS(title, message, finalConfig);
+          break;
+        case 'feishu':
+          result = await this.sendFeishu(title, message, finalConfig);
           break;
         default:
           throw new Error(`不支持的后端: ${backend}`);
@@ -347,6 +350,89 @@ class SimpleMCPServer {
       throw new Error(`MacOS通知发送失败: ${error.message}`);
     }
   }
+
+  async sendFeishu(title, message, config = {}) {
+    try {
+      const webhookUrl = config.webhook_url || config.webhookUrl;
+      if (!webhookUrl) {
+        throw new Error('飞书配置无效，需要提供 webhook_url');
+      }
+
+      // 构建飞书消息格式
+      let text = `**${title}**\n\n${message}`;
+      
+      // 添加 @ 功能
+      if (config.atAll) {
+        text += '\n\n<at user_id="all">所有人</at>';
+      }
+      
+      if (config.atUsers && config.atUsers.length > 0) {
+        config.atUsers.forEach(userId => {
+          text += `\n<at user_id="${userId}">@${userId}</at>`;
+        });
+      }
+      
+      if (config.atMobiles && config.atMobiles.length > 0) {
+        config.atMobiles.forEach(mobile => {
+          text += `\n<at user_id="${mobile}">@${mobile}</at>`;
+        });
+      }
+
+      const payload = {
+        msg_type: 'text',
+        content: {
+          text: text
+        }
+      };
+
+      // 如果有签名密钥，添加签名
+      if (config.secret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const crypto = await import('crypto');
+        const stringToSign = `${timestamp}\n${config.secret}`;
+        const hmac = crypto.createHmac('sha256', stringToSign);
+        const sign = hmac.digest('base64');
+        
+        payload.timestamp = timestamp.toString();
+        payload.sign = sign;
+      }
+
+      console.log(`[FEISHU] 发送到飞书群聊: ${webhookUrl}`);
+      console.log(`[FEISHU] 标题: ${title}`);
+      console.log(`[FEISHU] 内容: ${message}`);
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'notice-mcp/1.0.0'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`飞书API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        throw new Error(`飞书消息发送失败: ${result.msg || '未知错误'}`);
+      }
+
+      return {
+        messageId: `feishu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        webhookUrl: webhookUrl,
+        hasSecret: !!config.secret,
+        atAll: config.atAll,
+        atUsersCount: config.atUsers?.length || 0,
+        atMobilesCount: config.atMobiles?.length || 0
+      };
+    } catch (error) {
+      throw new Error(`飞书通知发送失败: ${error.message}`);
+    }
+  }
 }
 
 // STDIO MCP 协议处理
@@ -421,7 +507,7 @@ async function startServer() {
   
   console.error('✅ Notice MCP Server 已启动，等待连接...');
   console.error('📋 可用工具: send_notification, get_backends');
-  console.error('🔧 支持后端: email, webhook, slack, macos');
+  console.error('🔧 支持后端: email, webhook, slack, macos, feishu');
   
   if (config) {
     console.error('⚙️  使用TOML配置文件');

@@ -710,7 +710,8 @@ class NoticeMCPServer {
   run() {
     console.error('🚀 Notice MCP Server 已启动');
     console.error('📋 可用工具: send_notification, get_backends');
-    console.error('🔧 支持后端: email, webhook, slack, macos, feishu');
+    const backends = this.notificationManager.getAvailableBackends();
+    console.error(`🔧 支持后端: ${backends.join(', ')}`);
   }
 }
 
