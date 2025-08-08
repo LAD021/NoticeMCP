@@ -23,14 +23,14 @@ show_in_notification_center = true
 [backends.feishu]
 enabled = true
 webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/6480e218-0e67-4c40-91e6-379cdc95fb07"
-# secret = "your-secret-key"  # 可选，用于验证消息来源可选，用于安全验证
+# secret = "your-secret-key"  # 可选，用于验证消息来源
 
-# Webhook通知配置
-[backends.webhook]
-enabled = true
-default_url = "https://your-webhook-endpoint.com/notify"
-default_method = "POST"
-timeout = 5000
+# Webhook通知配置（已注释）
+# [backends.webhook]
+# enabled = false
+# default_url = "https://your-webhook-endpoint.com/notify"
+# default_method = "POST"
+# timeout = 5000
 
 # 速率限制配置
 [rate_limiting]
@@ -41,4 +41,4 @@ max_requests_per_minute = 60
 [rate_limiting.backends]
 macos = 60      # 每分钟最多60个系统通知
 feishu = 30     # 每分钟最多30条飞书消息
-webhook = 30    # 每分钟最多30个webhook请求
+# webhook = 30    # 每分钟最多30个webhook请求（已注释）

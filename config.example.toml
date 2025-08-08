@@ -21,43 +21,43 @@ file = "logs/notice-mcp.log"
 enable_console = true
 
 
-# MacOS系统通知配置
-[backends.macos]
-enabled = true
-default_sound = "Glass"
-default_subtitle = "来自 Notice MCP"
-show_in_notification_center = true
+# MacOS系统通知配置（已注释）
+# [backends.macos]
+# enabled = true
+# default_sound = "Glass"
+# default_subtitle = "来自 Notice MCP"
+# show_in_notification_center = true
 
 # 可用的系统声音列表
-[backends.macos.sounds]
-available = [
-    "Basso", "Blow", "Bottle", "Frog", "Funk",
-    "Glass", "Hero", "Morse", "Ping", "Pop",
-    "Purr", "Sosumi", "Submarine", "Tink"
-]
+# [backends.macos.sounds]
+# available = [
+#     "Basso", "Blow", "Bottle", "Frog", "Funk",
+#     "Glass", "Hero", "Morse", "Ping", "Pop",
+#     "Purr", "Sosumi", "Submarine", "Tink"
+# ]
 
-# 飞书通知配置
-[backends.feishu]
-enabled = true
-webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN"
+# 飞书通知配置（已注释）
+# [backends.feishu]
+# enabled = true
+# webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN"
 # secret = "your-bot-secret"  # 可选，用于安全验证
 
-# Webhook通知配置
-[backends.webhook]
-enabled = true
-default_url = "https://your-webhook-endpoint.com/notify"
-default_method = "POST"
-timeout = 5000
+# Webhook通知配置（已注释）
+# [backends.webhook]
+# enabled = false
+# default_url = "https://your-webhook-endpoint.com/notify"
+# default_method = "POST"
+# timeout = 5000
 
 
 
-# 速率限制配置
-[rate_limiting]
-enabled = true
-max_requests_per_minute = 60
+# 速率限制配置（已注释）
+# [rate_limiting]
+# enabled = true
+# max_requests_per_minute = 60
 
 # 每个后端的速率限制
-[rate_limiting.backends]
-macos = 60      # 每分钟最多60个系统通知
-feishu = 30     # 每分钟最多30条飞书消息
-webhook = 30    # 每分钟最多30个webhook请求
+# [rate_limiting.backends]
+# macos = 60      # 每分钟最多60个系统通知
+# feishu = 30     # 每分钟最多30条飞书消息
+# webhook = 30    # 每分钟最多30个webhook请求
