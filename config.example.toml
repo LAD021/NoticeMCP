@@ -1,0 +1,14 @@
+# Notice MCP Server 配置文件示例
+# 复制此文件为 config.toml 并取消注释需要的配置项
+
+# macOS 通知后端配置
+# [macos]
+# enable=true
+
+# 飞书通知后端配置
+# [feishu]
+# enable=true
+# webhook = [
+#     "https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook-token-here",
+#     "https://open.feishu.cn/open-apis/bot/v2/hook/backup-webhook-token-here"
+# ]
