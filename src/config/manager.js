@@ -326,7 +326,8 @@ class ConfigManager {
    */
   isBackendEnabled(backend) {
     const backendConfig = this.getBackendConfig(backend);
-    return backendConfig && backendConfig.enabled;
+    // 如果没有配置或没有enable字段，默认为false
+    return backendConfig && backendConfig.enable === true;
   }
 
   /**
@@ -366,29 +367,23 @@ class ConfigManager {
   validateConfig() {
     const errors = [];
     
-    // 验证服务器配置
-    if (!this.config.server.name) {
-      errors.push('服务器名称不能为空');
-    }
-    
     // 验证后端配置
     for (const [backendName, backendConfig] of Object.entries(this.config.backends)) {
-      if (backendConfig.enabled) {
+      if (this.isBackendEnabled(backendName)) {
         switch (backendName) {
-          case 'email':
-            if (!backendConfig.smtp.host) {
-              errors.push('邮件后端启用时，SMTP主机不能为空');
+          case 'feishu':
+            if (backendConfig.webhook && Array.isArray(backendConfig.webhook)) {
+              for (const url of backendConfig.webhook) {
+                if (!url.startsWith('https://open.feishu.cn/')) {
+                  errors.push(`飞书webhook URL必须以 https://open.feishu.cn/ 开头: ${url}`);
+                }
+              }
+            } else {
+              errors.push('飞书后端启用时，必须配置有效的webhook URL数组');
             }
             break;
-          case 'webhook':
-            if (Object.keys(backendConfig.endpoints).length === 0) {
-              errors.push('Webhook后端启用时，至少需要一个端点');
-            }
-            break;
-          case 'slack':
-            if (Object.keys(backendConfig.workspaces).length === 0) {
-              errors.push('Slack后端启用时，至少需要一个工作空间');
-            }
+          case 'macos':
+            // macOS后端无需特殊验证
             break;
         }
       }
