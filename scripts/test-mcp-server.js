@@ -99,23 +99,47 @@ class MCPTester {
       const requestStr = JSON.stringify(request) + '\n';
       
       let responseData = '';
+      let timeoutId;
       
       const onData = (data) => {
         responseData += data.toString();
         
         // 尝试解析JSON响应
-        try {
-          const lines = responseData.split('\n').filter(line => line.trim());
-          for (const line of lines) {
-            const response = JSON.parse(line);
-            if (response.id === request.id) {
-              this.serverProcess.stdout.removeListener('data', onData);
-              resolve(response);
-              return;
+        let startIndex = 0;
+        while (true) {
+          const jsonStart = responseData.indexOf('{"jsonrpc":', startIndex);
+          if (jsonStart === -1) break;
+          
+          // 尝试找到完整的JSON对象
+          let braceCount = 0;
+          let jsonEnd = -1;
+          for (let i = jsonStart; i < responseData.length; i++) {
+            if (responseData[i] === '{') braceCount++;
+            if (responseData[i] === '}') braceCount--;
+            if (braceCount === 0) {
+              jsonEnd = i;
+              break;
             }
           }
-        } catch (e) {
-          // 继续等待更多数据
+          
+          if (jsonEnd !== -1) {
+            const jsonStr = responseData.substring(jsonStart, jsonEnd + 1);
+            try {
+              const response = JSON.parse(jsonStr);
+              if (response.id === request.id) {
+                this.serverProcess.stdout.removeListener('data', onData);
+                clearTimeout(timeoutId);
+                resolve(response);
+                return;
+              }
+              startIndex = jsonEnd + 1;
+            } catch (e) {
+               startIndex = jsonStart + 1;
+             }
+          } else {
+            // 没有找到完整的JSON，等待更多数据
+            break;
+          }
         }
       };
 
@@ -125,7 +149,7 @@ class MCPTester {
       this.serverProcess.stdin.write(requestStr);
       
       // 超时处理
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         this.serverProcess.stdout.removeListener('data', onData);
         reject(new Error(`Request timeout for method: ${method}`));
       }, 5000);
@@ -171,7 +195,7 @@ class MCPTester {
       
       if (response.result && response.result.tools) {
         const tools = response.result.tools;
-        const expectedTools = ['send_notification', 'get_backends'];
+        const expectedTools = ['send_notification'];
         
         const foundTools = tools.map(tool => tool.name);
         const missingTools = expectedTools.filter(tool => !foundTools.includes(tool));
@@ -197,75 +221,9 @@ class MCPTester {
     }
   }
 
-  async testGetBackends() {
-    this.log('测试获取后端列表...', 'test');
-    
-    try {
-      const response = await this.sendMCPRequest('tools/call', {
-        name: 'get_backends',
-        arguments: {}
-      });
-      
-      if (response.result && response.result.content) {
-        const content = response.result.content[0];
-        if (content.type === 'text') {
-          const data = JSON.parse(content.text);
-          if (data.backends && Array.isArray(data.backends)) {
-            this.log(`后端列表测试成功，找到 ${data.backends.length} 个后端: ${data.backends.join(', ')}`, 'success');
-            this.testResults.push({ test: 'get_backends', status: 'pass', backends: data.backends });
-            return true;
-          }
-        }
-      }
-      
-      this.log('后端列表测试失败: 无效响应', 'error');
-      this.testResults.push({ test: 'get_backends', status: 'fail', error: 'Invalid response' });
-      return false;
-    } catch (error) {
-      this.log(`后端列表测试失败: ${error.message}`, 'error');
-      this.testResults.push({ test: 'get_backends', status: 'fail', error: error.message });
-      return false;
-    }
-  }
+  // get_backends 测试已移除 - 不再是独立工具
 
-  async testSendNotificationWithBackend() {
-    this.log('测试指定后端发送通知...', 'test');
-    
-    try {
-      const response = await this.sendMCPRequest('tools/call', {
-        name: 'send_notification',
-        arguments: {
-          title: '测试通知 - 指定后端',
-          message: '这是一条测试消息，使用macOS后端发送',
-          backend: 'macos'
-        }
-      });
-      
-      if (response.result && response.result.content) {
-        const content = response.result.content[0];
-        if (content.type === 'text') {
-          const data = JSON.parse(content.text);
-          if (data.success) {
-            this.log('指定后端通知发送成功', 'success');
-            this.testResults.push({ test: 'send_notification_with_backend', status: 'pass' });
-            return true;
-          } else {
-            this.log(`指定后端通知发送失败: ${data.error}`, 'error');
-            this.testResults.push({ test: 'send_notification_with_backend', status: 'fail', error: data.error });
-            return false;
-          }
-        }
-      }
-      
-      this.log('指定后端通知发送失败: 无效响应', 'error');
-      this.testResults.push({ test: 'send_notification_with_backend', status: 'fail', error: 'Invalid response' });
-      return false;
-    } catch (error) {
-      this.log(`指定后端通知发送失败: ${error.message}`, 'error');
-      this.testResults.push({ test: 'send_notification_with_backend', status: 'fail', error: error.message });
-      return false;
-    }
-  }
+  // testSendNotificationWithBackend 测试已移除 - 不再支持backend参数
 
   async testSendNotificationToAllBackends() {
     this.log('测试发送通知到所有后端...', 'test');
@@ -280,19 +238,16 @@ class MCPTester {
         }
       });
       
-      if (response.result && response.result.content) {
-        const content = response.result.content[0];
-        if (content.type === 'text') {
-          const data = JSON.parse(content.text);
-          if (data.success) {
-            this.log(`所有后端通知发送成功，发送到 ${data.backends ? data.backends.length : '未知'} 个后端`, 'success');
-            this.testResults.push({ test: 'send_notification_all_backends', status: 'pass', backends: data.backends });
-            return true;
-          } else {
-            this.log(`所有后端通知发送失败: ${data.error}`, 'error');
-            this.testResults.push({ test: 'send_notification_all_backends', status: 'fail', error: data.error });
-            return false;
-          }
+      if (response.result && typeof response.result.success === 'boolean') {
+        const data = response.result;
+        if (data.success) {
+          this.log(`所有后端通知发送成功，发送到 ${data.results ? data.results.length : '未知'} 个后端`, 'success');
+          this.testResults.push({ test: 'send_notification_all_backends', status: 'pass', results: data.results });
+          return true;
+        } else {
+          this.log(`所有后端通知发送失败: ${data.error || '未知错误'}`, 'error');
+          this.testResults.push({ test: 'send_notification_all_backends', status: 'fail', error: data.error || '未知错误' });
+          return false;
         }
       }
       
@@ -306,41 +261,91 @@ class MCPTester {
     }
   }
 
-  async testInvalidBackend() {
-    this.log('测试无效后端处理...', 'test');
+  async testInvalidTool() {
+    this.log('测试无效工具处理...', 'test');
     
     try {
-      const response = await this.sendMCPRequest('tools/call', {
-        name: 'send_notification',
-        arguments: {
-          title: '测试通知 - 无效后端',
-          message: '这是一条测试消息，使用无效后端',
-          backend: 'invalid_backend'
-        }
+      // 对于错误响应，我们需要特殊处理，因为ID可能是null
+      const response = await new Promise((resolve, reject) => {
+        const request = {
+          jsonrpc: '2.0',
+          id: this.requestId++,
+          method: 'tools/call',
+          params: {
+            name: 'invalid_tool',
+            arguments: {
+              title: '测试通知',
+              message: '这是一条测试消息'
+            }
+          }
+        };
+
+        const requestStr = JSON.stringify(request) + '\n';
+        let responseData = '';
+        let timeoutId;
+        
+        const onData = (data) => {
+          responseData += data.toString();
+          
+          // 查找错误响应
+          let startIndex = 0;
+          while (true) {
+            const jsonStart = responseData.indexOf('{"jsonrpc":', startIndex);
+            if (jsonStart === -1) break;
+            
+            let braceCount = 0;
+            let jsonEnd = -1;
+            for (let i = jsonStart; i < responseData.length; i++) {
+              if (responseData[i] === '{') braceCount++;
+              if (responseData[i] === '}') braceCount--;
+              if (braceCount === 0) {
+                jsonEnd = i;
+                break;
+              }
+            }
+            
+            if (jsonEnd !== -1) {
+              const jsonStr = responseData.substring(jsonStart, jsonEnd + 1);
+              try {
+                const response = JSON.parse(jsonStr);
+                // 对于错误响应，接受ID为null或匹配请求ID的情况
+                if (response.error && (response.id === null || response.id === request.id)) {
+                  this.serverProcess.stdout.removeListener('data', onData);
+                  clearTimeout(timeoutId);
+                  resolve(response);
+                  return;
+                }
+                startIndex = jsonEnd + 1;
+              } catch (e) {
+                startIndex = jsonStart + 1;
+              }
+            } else {
+              break;
+            }
+          }
+        };
+
+        this.serverProcess.stdout.on('data', onData);
+        this.serverProcess.stdin.write(requestStr);
+        
+        timeoutId = setTimeout(() => {
+          this.serverProcess.stdout.removeListener('data', onData);
+          reject(new Error(`Request timeout for method: tools/call`));
+        }, 5000);
       });
       
-      if (response.result && response.result.content) {
-        const content = response.result.content[0];
-        if (content.type === 'text') {
-          const data = JSON.parse(content.text);
-          if (!data.success && data.error) {
-            this.log('无效后端处理测试成功（正确返回错误）', 'success');
-            this.testResults.push({ test: 'invalid_backend', status: 'pass' });
-            return true;
-          } else {
-            this.log('无效后端处理测试失败（应该返回错误）', 'error');
-            this.testResults.push({ test: 'invalid_backend', status: 'fail', error: 'Should return error' });
-            return false;
-          }
-        }
+      if (response.error) {
+        this.log(`无效工具处理成功: ${response.error.message}`, 'success');
+        this.testResults.push({ test: 'invalid_tool', status: 'pass', error: response.error.message });
+        return true;
+      } else {
+        this.log('无效工具处理失败: 应该返回错误', 'error');
+        this.testResults.push({ test: 'invalid_tool', status: 'fail', error: 'Should return error' });
+        return false;
       }
-      
-      this.log('无效后端处理测试失败: 无效响应', 'error');
-      this.testResults.push({ test: 'invalid_backend', status: 'fail', error: 'Invalid response' });
-      return false;
     } catch (error) {
-      this.log(`无效后端处理测试失败: ${error.message}`, 'error');
-      this.testResults.push({ test: 'invalid_backend', status: 'fail', error: error.message });
+      this.log(`无效工具处理测试失败: ${error.message}`, 'error');
+      this.testResults.push({ test: 'invalid_tool', status: 'fail', error: error.message });
       return false;
     }
   }
@@ -359,10 +364,8 @@ class MCPTester {
       const tests = [
         () => this.testInitialize(),
         () => this.testListTools(),
-        () => this.testGetBackends(),
-        () => this.testSendNotificationWithBackend(),
         () => this.testSendNotificationToAllBackends(),
-        () => this.testInvalidBackend()
+        () => this.testInvalidTool()
       ];
       
       let passedTests = 0;
@@ -384,7 +387,14 @@ class MCPTester {
       
       this.testResults.forEach((result, index) => {
         const status = result.status === 'pass' ? '✅' : '❌';
-        this.log(`${index + 1}. ${result.test}: ${status}`, 'info');
+        const testNames = {
+          'initialize': 'initialize',
+          'list_tools': 'list_tools',
+          'send_notification_all_backends': 'send_notification_all_backends',
+          'invalid_tool': 'invalid_tool'
+        };
+        const testName = testNames[result.test] || result.test;
+        this.log(`${index + 1}. ${testName}: ${status}`, 'info');
         if (result.error) {
           this.log(`   错误: ${result.error}`, 'error');
         }
