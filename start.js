@@ -49,22 +49,6 @@ class SimpleMCPServer {
           },
           required: ['title', 'message']
         }
-      },
-      {
-        name: 'send_dual_notification',
-        description: '同时发送通知到 macOS 和飞书后端（使用配置文件中的设置）',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            title: { type: 'string', description: '通知标题' },
-            message: { type: 'string', description: '通知内容' },
-            config: {
-              type: 'object',
-              description: '可选的额外配置参数（会覆盖配置文件中的设置）'
-            }
-          },
-          required: ['title', 'message']
-        }
       }
     ];
   }
@@ -76,8 +60,10 @@ class SimpleMCPServer {
     
     const backends = [];
     const config = this.configManager.getConfig();
+    console.log(`[DEBUG] Full config:`, JSON.stringify(config, null, 2));
     
     if (config.backends) {
+      console.log(`[DEBUG] Backends config:`, JSON.stringify(config.backends, null, 2));
       if (config.backends.email && config.backends.email.enabled) {
         backends.push('email');
       }
@@ -88,13 +74,16 @@ class SimpleMCPServer {
         backends.push('slack');
       }
       if (config.backends.macos && config.backends.macos.enabled) {
+        console.log(`[DEBUG] macOS backend enabled`);
         backends.push('macos');
       }
       if (config.backends.feishu && config.backends.feishu.enabled) {
+        console.log(`[DEBUG] Feishu backend enabled`);
         backends.push('feishu');
       }
     }
     
+    console.log(`[DEBUG] Final backends list:`, backends);
     return backends.length > 0 ? backends : ['macos', 'feishu'];
   }
 
@@ -133,22 +122,6 @@ class SimpleMCPServer {
     switch (name) {
       case 'send_notification':
         return await this.sendNotification(args);
-      
-      case 'send_dual_notification':
-        const result = await this.sendDualNotification(args.title, args.message, args.config || {});
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: result.success,
-              message: result.success ? 
-                `双后端通知发送完成 (${result.successCount}/${result.totalBackends})` : 
-                '双后端通知发送失败',
-              timestamp: new Date().toISOString(),
-              ...result
-            }, null, 2)
-          }]
-        };
 
       default:
         throw new Error(`未知工具: ${name}`);
@@ -156,44 +129,33 @@ class SimpleMCPServer {
   }
 
   async sendNotification(args) {
+    console.log('=== SENDNOTIFICATION METHOD CALLED ===');
+    console.log('Args:', JSON.stringify(args, null, 2));
     const { title, message, config = {} } = args;
-    
-    // 超级强制输出调试信息
-    console.log(`\n\n🚨🚨🚨 SUPER FORCE DEBUG START 🚨🚨🚨`);
-    console.log(`🔥 NEW SERVER INSTANCE ACTIVE 🔥`);
-    console.log(`\n=== NOTIFICATION DEBUG START ===`);
-    console.log(`[FORCE DEBUG] sendNotification called with:`);
-    console.log(`[FORCE DEBUG] Title: ${title}`);
-    console.log(`[FORCE DEBUG] Message: ${message}`);
-    console.log(`[FORCE DEBUG] Input config:`, JSON.stringify(config, null, 2));
-    console.log(`[FORCE DEBUG] ConfigManager exists:`, !!this.configManager);
     
     const results = [];
     const errors = [];
     
     // 获取所有启用的后端
     const availableBackends = this.getAvailableBackends();
-    console.log(`[FORCE DEBUG] Available backends:`, availableBackends);
-    console.log(`[FORCE DEBUG] Backend count: ${availableBackends.length}`);
+    console.log(`[DEBUG] Available backends: ${availableBackends.join(', ')}`);
     
     // 向每个启用的后端发送通知
     for (const backend of availableBackends) {
-      console.log(`\n[FORCE DEBUG] Processing backend: ${backend}`);
       try {
+        console.log(`[DEBUG] Processing backend: ${backend}`);
         // 合并配置文件中的配置
         let finalConfig = { ...config };
         if (this.configManager) {
           const backendConfig = this.configManager.getBackendConfig(backend);
-          console.log(`[FORCE DEBUG] Backend config for ${backend}:`, JSON.stringify(backendConfig, null, 2));
+          console.log(`[DEBUG] Backend config for ${backend}:`, JSON.stringify(backendConfig, null, 2));
           if (backendConfig) {
             finalConfig = { ...backendConfig, ...config };
           }
         }
-        
-        console.log(`[FORCE DEBUG] Final merged config for ${backend}:`, JSON.stringify(finalConfig, null, 2));
+        console.log(`[DEBUG] Final config for ${backend}:`, JSON.stringify(finalConfig, null, 2));
         
         let result;
-        console.log(`[FORCE DEBUG] Calling ${backend} backend...`);
         
         switch (backend) {
           case 'email':
@@ -221,11 +183,7 @@ class SimpleMCPServer {
           ...result
         });
         
-        console.log(`[FORCE DEBUG] ${backend} backend completed successfully`);
-        
       } catch (error) {
-        console.log(`[FORCE ERROR] Backend ${backend} failed:`, error.message);
-        console.log(`[FORCE ERROR] Full error:`, error);
         errors.push({
           backend,
           success: false,
@@ -237,10 +195,6 @@ class SimpleMCPServer {
     const hasSuccess = results.length > 0;
     const hasErrors = errors.length > 0;
     
-    console.log(`[FORCE DEBUG] Final results:`, results);
-    console.log(`[FORCE DEBUG] Final errors:`, errors);
-    console.log(`=== NOTIFICATION DEBUG END ===\n`);
-    
     return {
       content: [{
         type: 'text',
@@ -251,7 +205,7 @@ class SimpleMCPServer {
             '所有通知发送失败',
           timestamp: new Date().toISOString(),
           results,
-          errors: hasErrors ? errors : undefined
+          errors: errors.length > 0 ? errors : undefined
         }, null, 2)
       }]
     };
@@ -511,94 +465,7 @@ class SimpleMCPServer {
     }
   }
 
-  // 代理方法：同时发送到 macOS 和飞书后端
-  async sendDualNotification(title, message, config = {}) {
-    console.log(`[DUAL] 开始双后端通知发送`);
-    console.log(`[DUAL] 标题: ${title}`);
-    console.log(`[DUAL] 消息: ${message}`);
-    console.log(`[DUAL] 输入配置:`, JSON.stringify(config, null, 2));
-    
-    const results = [];
-    const errors = [];
-    
-    // 从配置文件获取 macOS 后端配置
-    let macosConfig = {};
-    if (this.configManager) {
-      const backendConfig = this.configManager.getBackendConfig('macos');
-      if (backendConfig) {
-        macosConfig = { ...backendConfig };
-      }
-    }
-    // 合并用户传入的配置（如果有）
-    macosConfig = { ...macosConfig, ...config };
-    
-    // 从配置文件获取飞书后端配置
-    let feishuConfig = {};
-    if (this.configManager) {
-      const backendConfig = this.configManager.getBackendConfig('feishu');
-      if (backendConfig) {
-        feishuConfig = { ...backendConfig };
-      }
-    }
-    // 合并用户传入的配置（如果有）
-    feishuConfig = { ...feishuConfig, ...config };
-    
-    console.log(`[DUAL] macOS 配置:`, JSON.stringify(macosConfig, null, 2));
-    console.log(`[DUAL] 飞书配置:`, JSON.stringify(feishuConfig, null, 2));
-    
-    // 发送到 macOS
-    try {
-      console.log(`[DUAL] 正在发送到 macOS...`);
-      const macosResult = await this.sendMacOS(title, message, macosConfig);
-      results.push({
-        backend: 'macos',
-        success: true,
-        ...macosResult
-      });
-      console.log(`[DUAL] macOS 发送成功`);
-    } catch (error) {
-      console.log(`[DUAL] macOS 发送失败:`, error.message);
-      errors.push({
-        backend: 'macos',
-        success: false,
-        error: error.message
-      });
-    }
-    
-    // 发送到飞书
-    try {
-      console.log(`[DUAL] 正在发送到飞书...`);
-      const feishuResult = await this.sendFeishu(title, message, feishuConfig);
-      results.push({
-        backend: 'feishu',
-        success: true,
-        ...feishuResult
-      });
-      console.log(`[DUAL] 飞书发送成功`);
-    } catch (error) {
-      console.log(`[DUAL] 飞书发送失败:`, error.message);
-      errors.push({
-        backend: 'feishu',
-        success: false,
-        error: error.message
-      });
-    }
-    
-    const hasSuccess = results.length > 0;
-    const hasErrors = errors.length > 0;
-    
-    console.log(`[DUAL] 发送完成 - 成功: ${results.length}, 失败: ${errors.length}`);
-    
-    return {
-      messageId: `dual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      totalBackends: 2,
-      successCount: results.length,
-      errorCount: errors.length,
-      results: results,
-      errors: hasErrors ? errors : undefined,
-      success: hasSuccess
-    };
-  }
+
 }
 
 // STDIO MCP 协议处理
