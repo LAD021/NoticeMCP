@@ -5,11 +5,14 @@
 
 // Type declarations for Node.js globals
 declare const process: any;
-declare const require: any;
 
-// Dynamic imports for Node.js modules
-const fs = require('fs');
-const path = require('path');
+// ES module imports
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * 简单的TOML解析器
@@ -21,12 +24,14 @@ class SimpleTomlParser {
     const lines = content.split('\n');
     let currentSection: any = result;
     let currentPath: string[] = [];
+    let i = 0;
     
-    for (let line of lines) {
-      line = line.trim();
+    while (i < lines.length) {
+      let line = lines[i].trim();
       
       // 跳过空行和注释
       if (!line || line.startsWith('#')) {
+        i++;
         continue;
       }
       
@@ -45,17 +50,37 @@ class SimpleTomlParser {
           }
           currentSection = currentSection[part];
         }
+        i++;
         continue;
       }
       
       // 处理键值对
       const equalIndex = line.indexOf('=');
       if (equalIndex === -1) {
+        i++;
         continue;
       }
       
       const key = line.slice(0, equalIndex).trim();
-      const valueStr = line.slice(equalIndex + 1).trim();
+      let valueStr = line.slice(equalIndex + 1).trim();
+      
+      // 处理多行数组
+      if (valueStr.startsWith('[') && !valueStr.endsWith(']')) {
+        // 多行数组，需要读取后续行
+        let arrayContent = valueStr;
+        i++;
+        while (i < lines.length) {
+          const nextLine = lines[i].trim();
+          arrayContent += ' ' + nextLine;
+          i++;
+          if (nextLine.endsWith(']')) {
+            break;
+          }
+        }
+        valueStr = arrayContent;
+      } else {
+        i++;
+      }
       
       currentSection[key] = this.parseValue(valueStr);
     }
@@ -161,7 +186,18 @@ export interface NoticeConfig {
       default_icon_url: string;
       workspaces: Record<string, string>;
     };
-    
+
+    feishu: {
+      enabled: boolean;
+      default_at_all: boolean;
+      webhooks: Record<string, string>;
+      secrets: Record<string, string>;
+      mentions: {
+        default_at_users: string[];
+        admin_at_users: string[];
+      };
+    };
+
     macos: {
       enabled: boolean;
       default_sound: string;
@@ -239,7 +275,7 @@ export class ConfigManager {
   private configPath: string;
   
   private constructor(configPath?: string) {
-    this.configPath = configPath || path.join(process.cwd(), 'config.toml');
+    this.configPath = configPath || join(process.cwd(), 'config.toml');
     this.config = this.loadConfig();
   }
   
@@ -258,17 +294,29 @@ export class ConfigManager {
    */
   private loadConfig(): NoticeConfig {
     try {
-      if (!fs.existsSync(this.configPath)) {
-        console.warn(`配置文件不存在: ${this.configPath}，使用默认配置`);
-        return this.getDefaultConfig();
-      }
-      
-      const content = fs.readFileSync(this.configPath, 'utf8');
+      const content = readFileSync(this.configPath, 'utf8');
+      // 解析TOML配置
       const parsedConfig = SimpleTomlParser.parse(content);
       
       // 合并默认配置和用户配置
       const defaultConfig = this.getDefaultConfig();
-      return this.mergeConfig(defaultConfig, parsedConfig);
+      
+      // 将用户配置转换为正确的结构
+      const structuredUserConfig: any = {
+        backends: {}
+      };
+      
+      // 将顶级的后端配置移动到backends下
+      for (const [key, value] of Object.entries(parsedConfig)) {
+        if (['feishu', 'macos', 'email', 'webhook', 'slack'].includes(key)) {
+          (structuredUserConfig.backends as any)[key] = value;
+        } else {
+          (structuredUserConfig as any)[key] = value;
+        }
+      }
+      
+      const mergedConfig = this.mergeConfig(defaultConfig, structuredUserConfig);
+      return mergedConfig;
       
     } catch (error) {
       console.error(`加载配置文件失败: ${error}`);
@@ -295,7 +343,7 @@ export class ConfigManager {
       },
       backends: {
         email: {
-          enabled: true,
+          enabled: false,
           default_from: 'noreply@yourapp.com',
           default_subject: '通知来自 Notice MCP',
           smtp: {
@@ -310,7 +358,7 @@ export class ConfigManager {
           }
         },
         webhook: {
-          enabled: true,
+          enabled: false,
           default_method: 'POST',
           timeout: 5000,
           retry_count: 3,
@@ -322,12 +370,22 @@ export class ConfigManager {
           }
         },
         slack: {
-          enabled: true,
+          enabled: false,
           default_channel: '#general',
           default_username: 'Notice Bot',
           default_icon_emoji: ':robot_face:',
           default_icon_url: '',
           workspaces: {}
+        },
+        feishu: {
+          enabled: true,
+          default_at_all: false,
+          webhooks: {},
+          secrets: {},
+          mentions: {
+            default_at_users: [],
+            admin_at_users: []
+          }
         },
         macos: {
           enabled: true,
@@ -415,8 +473,10 @@ export class ConfigManager {
     for (const key in userConfig) {
       if (userConfig.hasOwnProperty(key)) {
         if (typeof userConfig[key] === 'object' && userConfig[key] !== null && !Array.isArray(userConfig[key])) {
+          // 对象类型，递归合并
           result[key] = this.mergeConfig(result[key] || {}, userConfig[key]);
         } else {
+          // 基本类型或数组，直接覆盖
           result[key] = userConfig[key];
         }
       }

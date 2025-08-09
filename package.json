@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node start.js",
+    "start": "tsx start.ts",
     "dev": "tsx src/index.ts",
     "test": "node tests/integration.test.js",
     "test:macos": "node test-macos.js",
