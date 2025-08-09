@@ -26,7 +26,7 @@
     "notice-mcp": {
       "command": "node",
       "args": [
-        "/Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js"
+        "/path/to/your/NoticeMCP/start.js"
       ],
       "env": {
         "NODE_ENV": "production"
@@ -36,7 +36,7 @@
 }
 ```
 
-**重要:** 请将 `/Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js` 替换为您的实际项目路径。
+**重要:** 请将 `/path/to/your/NoticeMCP/start.js` 替换为您的实际项目路径。
 
 ### 3. 快速配置（推荐）
 
@@ -148,7 +148,7 @@ copy trae_config.json "%APPDATA%\Trae\"
 
 ```bash
 # 确保使用最新版本
-cd /Users/bbaa/WORK2025/mysmall/NoticeMCP
+cd /path/to/your/NoticeMCP
 git pull origin main  # 如果使用 Git
 
 # 重启 MCP 服务器
@@ -160,17 +160,17 @@ node start.js
 检查路径是否正确：
 ```bash
 # 测试路径是否存在
-ls -la /Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js
+ls -la /path/to/your/NoticeMCP/start.js
 
 # 测试服务器是否可以运行
-node /Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js
+node /path/to/your/NoticeMCP/start.js
 ```
 
 ### 3. 权限问题
 
 确保文件有执行权限：
 ```bash
-chmod +x /Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js
+chmod +x /path/to/your/NoticeMCP/start.js
 ```
 
 ### 4. Node.js版本
@@ -184,7 +184,7 @@ node --version
 
 重新安装依赖：
 ```bash
-cd /Users/bbaa/WORK2025/mysmall/NoticeMCP
+cd /path/to/your/NoticeMCP
 npm install
 ```
 
