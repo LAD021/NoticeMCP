@@ -1,24 +1,30 @@
-# Claude Desktop MCP 配置指南
+# Claude Desktop 设置指南
 
-本指南将帮助您在 Claude Desktop 中配置 Notice MCP Server。
+本指南将帮助您在 Claude Desktop 中配置 Notice MCP Server，让 Claude 能够发送通知。
 
-## 📋 配置步骤
+## 📋 前提条件
+
+- 已安装 Claude Desktop
+- 已完成 Notice MCP Server 的安装和配置
+- Notice MCP Server 能够正常启动
+
+## 🔧 配置步骤
 
 ### 1. 找到 Claude Desktop 配置文件
 
 **macOS:**
-```
+```bash
 ~/Library/Application Support/Claude/claude_desktop_config.json
 ```
 
 **Windows:**
-```
+```bash
 %APPDATA%\Claude\claude_desktop_config.json
 ```
 
 ### 2. 编辑配置文件
 
-将以下内容添加到您的 `claude_desktop_config.json` 文件中：
+在配置文件中添加 Notice MCP Server：
 
 ```json
 {
@@ -36,123 +42,152 @@
 }
 ```
 
-**重要:** 请将 `/path/to/your/NoticeMCP/start.js` 替换为您的实际项目路径。
+**重要：** 请将 `/path/to/your/NoticeMCP/start.js` 替换为您的实际项目路径。
 
 ### 3. 重启 Claude Desktop
 
-保存配置文件后，重启 Claude Desktop 使配置生效。
+保存配置文件后，完全退出并重新启动 Claude Desktop。
 
-## 🚀 使用方法
+### 4. 验证连接
+
+在 Claude Desktop 中询问：
+
+```
+What tools do you have available?
+```
+
+如果配置成功，Claude 应该会提到 `send_notification` 和 `get_backends` 工具。
+
+## 🚀 使用示例
 
 配置完成后，您可以在 Claude Desktop 中使用以下方式发送通知：
 
-### 基本通知
+### macOS 通知
 ```
-请发送一个MacOS通知，标题是"任务完成"，内容是"代码编译成功"
-```
-
-### 带副标题的通知
-```
-发送通知：标题"构建完成"，内容"项目构建成功"，副标题"开发环境"
+Send a macOS notification with title "Task Complete" and message "Code compilation successful"
 ```
 
-### 带声音的通知
+### 飞书通知
 ```
-发送一个带声音的通知，标题"警告"，内容"内存使用率过高"，声音"Basso"
-```
-
-## ⚙️ 高级配置
-
-### 环境变量
-
-您可以在 `env` 部分添加更多环境变量：
-
-```json
-"env": {
-  "NODE_ENV": "production",
-  "DEBUG": "false",
-  "LOG_LEVEL": "info"
-}
+Send a Feishu notification with title "Deployment Complete" and message "New version deployed to production"
 ```
 
-### 启动参数
-
-您可以在 `args` 数组中添加启动参数：
-
-```json
-"args": [
-  "/path/to/start.js",
-  "--config",
-  "/path/to/custom-config.toml"
-]
+### 查看可用后端
 ```
-
-### 相对路径支持
-
-如果您的项目在固定位置，可以使用相对路径：
-
-```json
-"command": "node",
-"args": ["./start.js"]
+Show me all available notification backends
 ```
 
 ## 🔧 故障排除
 
-### 1. 服务器无法启动
+### 1. MCP 服务器无法连接
 
-- 检查路径是否正确
-- 确保 Node.js 已安装
-- 检查项目依赖是否已安装 (`npm install`)
+**症状：** Claude Desktop 提示找不到 MCP 工具
 
-### 2. 通知不显示
+**解决方案：**
+- 检查配置文件路径是否正确
+- 确认 Notice MCP Server 能够独立启动
+- 验证 `start.js` 文件路径是否正确
+- 重启 Claude Desktop
 
-- 检查 macOS 通知权限设置
-- 确保 `config.toml` 文件存在且配置正确
-- 查看 Claude Desktop 的开发者工具中的错误信息
+### 2. 权限错误
 
-### 3. 配置文件格式错误
+**症状：** 提示权限被拒绝
 
-- 确保 JSON 格式正确（无多余逗号、引号匹配等）
-- 使用 JSON 验证工具检查语法
+**解决方案：**
+```bash
+# 确保文件有执行权限
+chmod +x /path/to/your/NoticeMCP/start.js
 
-## 📝 示例配置文件
+# 检查 Node.js 是否在 PATH 中
+which node
+```
 
-完整的 `claude_desktop_config.json` 示例：
+### 3. 配置文件语法错误
+
+**症状：** Claude Desktop 启动失败或无法加载配置
+
+**解决方案：**
+- 使用 JSON 验证器检查配置文件语法
+- 确保所有引号和括号正确匹配
+- 检查路径中的反斜杠转义（Windows）
+
+### 4. 测试连接
+
+运行以下命令测试 MCP 服务器：
+
+```bash
+# 进入项目目录
+cd /path/to/your/NoticeMCP
+
+# 启动服务器
+node start.js
+```
+
+应该看到：
+```
+✅ Notice MCP Server 已启动，等待连接...
+📋 可用工具: send_notification, get_backends
+```
+
+## 📝 高级配置
+
+### 环境变量
+
+您可以在配置中添加环境变量：
 
 ```json
 {
   "mcpServers": {
     "notice-mcp": {
       "command": "node",
-      "args": [
-        "/path/to/your/NoticeMCP/start.js"
-      ],
+      "args": ["/path/to/your/NoticeMCP/start.js"],
       "env": {
         "NODE_ENV": "production",
-        "DEBUG": "false"
+        "LOG_LEVEL": "info",
+        "CONFIG_PATH": "/path/to/custom/config.toml"
       }
-    },
-    "other-mcp-server": {
-      "command": "python",
-      "args": ["-m", "other_server"]
     }
   }
 }
 ```
 
-## 🎯 快速测试
+### 多个 MCP 服务器
 
-配置完成后，在 Claude Desktop 中发送以下消息进行测试：
+您可以同时配置多个 MCP 服务器：
 
+```json
+{
+  "mcpServers": {
+    "notice-mcp": {
+      "command": "node",
+      "args": ["/path/to/NoticeMCP/start.js"]
+    },
+    "other-mcp": {
+      "command": "python",
+      "args": ["/path/to/other-mcp/server.py"]
+    }
+  }
+}
 ```
-发送一个测试通知，标题"测试"，内容"Notice MCP Server 配置成功！"
-```
 
-如果看到 macOS 通知弹出，说明配置成功！
+## 🎯 最佳实践
 
-## 📚 更多信息
+1. **使用绝对路径**：避免相对路径可能导致的问题
+2. **定期测试**：确保 MCP 服务器能够正常启动
+3. **查看日志**：检查 Claude Desktop 的日志文件以诊断问题
+4. **备份配置**：在修改前备份配置文件
 
-- [MCP 官方文档](https://modelcontextprotocol.io/)
-- [Claude Desktop 配置指南](https://claude.ai/docs)
-- [项目 README](./README.md)
-- [TOML 配置指南](./TOML_CONFIG_GUIDE.md)
+## 📞 获取帮助
+
+如果遇到问题：
+
+1. 检查 Notice MCP Server 的日志输出
+2. 查看 Claude Desktop 的错误信息
+3. 在项目 GitHub 页面创建 Issue
+4. 提供详细的错误信息和配置文件（隐藏敏感信息）
+
+## 🔗 相关链接
+
+- [Claude Desktop 官方文档](https://docs.anthropic.com/claude/docs)
+- [MCP 协议规范](https://modelcontextprotocol.io/)
+- [Notice MCP Server GitHub](https://github.com/your-username/NoticeMCP)

@@ -1,120 +1,247 @@
-# TOML配置管理指南
+# TOML 配置指南
 
-## 概述
+本指南详细说明了 Notice MCP Server 的 TOML 配置文件格式和选项。
 
-Notice MCP Server 现在支持使用 TOML 配置文件来管理所有通知后端的配置。这使得配置管理更加灵活和可维护。
+## 📋 配置文件概述
 
-## 配置文件位置
+Notice MCP Server 使用 TOML 格式的配置文件来管理所有设置。配置文件通常命名为 `config.toml`，位于项目根目录。
 
-配置文件应放置在项目根目录下，命名为 `config.toml`。
+## 🚀 快速开始
 
-## 配置文件结构
+### 1. 创建配置文件
 
-### 服务器配置
+```bash
+# 复制示例配置文件
+cp config.example.toml config.toml
+```
+
+### 2. 基本配置结构
 
 ```toml
 [server]
 name = "Notice MCP Server"
-version = "1.0.0"
-port = 3000
+version = "0.3.0"
 debug = false
+
+[logging]
+level = "info"
+enable_console = true
+file = "notice.log"
+
+[backends.macos]
+enabled = true
+default_sound = "Glass"
+default_subtitle = "来自 Notice MCP"
+
+[backends.feishu]
+enabled = true
+webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_TOKEN"
+secret = "your-secret"
 ```
 
-### 日志配置
+## 📝 配置节详解
+
+### [server] - 服务器配置
+
+```toml
+[server]
+name = "Notice MCP Server"          # 服务器名称
+version = "0.3.0"                   # 版本号
+debug = false                       # 调试模式
+port = 3000                         # 端口号（可选）
+```
+
+**参数说明：**
+- `name`: 服务器显示名称
+- `version`: 当前版本号
+- `debug`: 是否启用调试模式（true/false）
+- `port`: 服务器端口（可选，默认不使用）
+
+### [logging] - 日志配置
 
 ```toml
 [logging]
-level = "info"  # debug, info, warn, error
-file = "notice.log"
-enable_console = true
+level = "info"                      # 日志级别
+enable_console = true               # 控制台输出
+file = "notice.log"                 # 日志文件
+max_size = "10MB"                   # 最大文件大小（可选）
+max_files = 5                       # 最大文件数量（可选）
 ```
 
-### 后端配置
+**日志级别：**
+- `error`: 仅错误信息
+- `warn`: 警告和错误
+- `info`: 信息、警告和错误（推荐）
+- `debug`: 所有信息（调试用）
 
-#### 邮件后端
+### [backends.macos] - macOS 通知配置
+
+```toml
+[backends.macos]
+enabled = true                      # 是否启用
+default_sound = "Glass"             # 默认声音
+default_subtitle = "来自 Notice MCP" # 默认副标题
+show_in_notification_center = true  # 显示在通知中心
+timeout = 5                         # 超时时间（秒）
+```
+
+**可用声音：**
+- `Basso`, `Blow`, `Bottle`, `Frog`, `Funk`
+- `Glass`, `Hero`, `Morse`, `Ping`, `Pop`
+- `Purr`, `Sosumi`, `Submarine`, `Tink`
+
+### [backends.feishu] - 飞书通知配置
+
+```toml
+[backends.feishu]
+enabled = true                                              # 是否启用
+webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_TOKEN"  # Webhook URL
+secret = "your-secret"                                      # 签名密钥（可选）
+default_at_all = false                                      # 默认@所有人
+default_message_type = "text"                               # 默认消息类型
+timeout = 10                                                # 请求超时（秒）
+```
+
+**消息类型：**
+- `text`: 纯文本消息
+- `rich_text`: 富文本消息
+- `interactive`: 交互式卡片
+
+### [backends.email] - 邮件通知配置（开发中）
 
 ```toml
 [backends.email]
+enabled = false                     # 是否启用
+default_from = "noreply@example.com" # 默认发件人
+default_subject = "通知"             # 默认主题
+
+[backends.email.smtp]
+host = "smtp.gmail.com"             # SMTP 服务器
+port = 587                          # SMTP 端口
+secure = false                      # 是否使用 SSL
+user = "${EMAIL_USER}"              # 用户名（环境变量）
+pass = "${EMAIL_PASS}"              # 密码（环境变量）
+```
+
+### [backends.webhook] - Webhook 通知配置（开发中）
+
+```toml
+[backends.webhook]
+enabled = false                     # 是否启用
+default_url = "https://example.com/webhook"  # 默认 URL
+default_method = "POST"             # 默认 HTTP 方法
+timeout = 10                        # 请求超时（秒）
+
+[backends.webhook.headers]
+"Content-Type" = "application/json"
+"Authorization" = "Bearer ${WEBHOOK_TOKEN}"
+```
+
+### [rate_limiting] - 速率限制配置（可选）
+
+```toml
+[rate_limiting]
+enabled = true                      # 是否启用速率限制
+max_requests = 100                  # 最大请求数
+time_window = 3600                  # 时间窗口（秒）
+per_backend = true                  # 按后端分别限制
+```
+
+## 🔐 环境变量支持
+
+配置文件支持环境变量替换，使用 `${VARIABLE_NAME}` 语法：
+
+```toml
+[backends.feishu]
+webhook_url = "${FEISHU_WEBHOOK_URL}"
+secret = "${FEISHU_SECRET}"
+
+[backends.email.smtp]
+user = "${EMAIL_USER}"
+pass = "${EMAIL_PASS}"
+```
+
+**设置环境变量：**
+
+```bash
+# macOS/Linux
+export FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_TOKEN"
+export FEISHU_SECRET="your-secret"
+export EMAIL_USER="your-email@gmail.com"
+export EMAIL_PASS="your-app-password"
+
+# Windows
+set FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_TOKEN
+set FEISHU_SECRET=your-secret
+```
+
+## 📋 完整配置示例
+
+```toml
+# Notice MCP Server 配置文件
+
+[server]
+name = "Notice MCP Server"
+version = "0.3.0"
+debug = false
+
+[logging]
+level = "info"
+enable_console = true
+file = "logs/notice.log"
+max_size = "10MB"
+max_files = 5
+
+# macOS 系统通知
+[backends.macos]
 enabled = true
-default_from = "noreply@yourapp.com"
-default_subject = "通知来自 Notice MCP"
+default_sound = "Glass"
+default_subtitle = "来自 AI 助手"
+show_in_notification_center = true
+timeout = 5
+
+# 飞书通知
+[backends.feishu]
+enabled = true
+webhook_url = "${FEISHU_WEBHOOK_URL}"
+secret = "${FEISHU_SECRET}"
+default_at_all = false
+default_message_type = "text"
+timeout = 10
+
+# 邮件通知（开发中）
+[backends.email]
+enabled = false
+default_from = "noreply@yourcompany.com"
+default_subject = "AI 助手通知"
 
 [backends.email.smtp]
 host = "smtp.gmail.com"
 port = 587
 secure = false
-user = "your-email@gmail.com"  # 可通过环境变量 EMAIL_USER 设置
-pass = "your-app-password"     # 可通过环境变量 EMAIL_PASS 设置
+user = "${EMAIL_USER}"
+pass = "${EMAIL_PASS}"
 
-[backends.email.recipients]
-default = ["admin@yourapp.com"]
-admin = ["admin@yourapp.com", "dev@yourapp.com"]
-dev = ["dev@yourapp.com"]
-```
-
-#### Webhook后端
-
-```toml
+# Webhook 通知（开发中）
 [backends.webhook]
-enabled = true
+enabled = false
+default_url = "${WEBHOOK_URL}"
 default_method = "POST"
-timeout = 5000
-retry_count = 3
-retry_delay = 1000
-
-[backends.webhook.endpoints]
-default = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-alerts = "https://your-app.com/api/alerts"
+timeout = 10
 
 [backends.webhook.headers]
 "Content-Type" = "application/json"
-"User-Agent" = "Notice-MCP-Server/1.0"
-"Authorization" = "Bearer your-token"
-```
+"Authorization" = "Bearer ${WEBHOOK_TOKEN}"
+"X-Source" = "Notice-MCP"
 
-#### Slack后端
-
-```toml
-[backends.slack]
+# 速率限制
+[rate_limiting]
 enabled = true
-default_channel = "#general"
-default_username = "Notice Bot"
-default_icon_emoji = ":bell:"
-default_icon_url = ""
+max_requests = 100
+time_window = 3600
+per_backend = true
 
-[backends.slack.workspaces]
-default = "xoxb-your-slack-bot-token"  # 可通过环境变量 SLACK_TOKEN 设置
-dev = "xoxb-your-dev-slack-token"
-```
-
-#### MacOS后端
-
-```toml
-[backends.macos]
-enabled = true
-default_sound = "Glass"
-default_subtitle = "来自 Notice MCP"
-show_in_notification_center = true
-
-[backends.macos.sounds]
-available = [
-    "Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero",
-    "Morse", "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"
-]
-```
-
-### 通知模板
-
-```toml
-[templates.default]
-title = "通知"
-message = "您有新的通知消息"
-
-[templates.alert]
-title = "⚠️ 警告"
-message = "系统检测到异常情况"
-sound = "Basso"
-
+# 模板配置（可选）
 [templates.success]
 title = "✅ 成功"
 message = "操作已成功完成"
@@ -122,139 +249,93 @@ sound = "Hero"
 
 [templates.error]
 title = "❌ 错误"
-message = "系统发生错误"
-sound = "Sosumi"
+message = "操作失败，请检查日志"
+sound = "Basso"
+
+[templates.warning]
+title = "⚠️ 警告"
+message = "请注意以下问题"
+sound = "Funk"
 ```
 
-### 环境变量映射
+## 🔧 配置验证
 
-```toml
-[environment]
-EMAIL_USER = "backends.email.smtp.user"
-EMAIL_PASS = "backends.email.smtp.pass"
-SLACK_TOKEN = "backends.slack.workspaces.default"
-WEBHOOK_URL = "backends.webhook.endpoints.default"
+### 1. 语法检查
+
+使用 TOML 验证工具检查语法：
+
+```bash
+# 使用 Python toml 库
+python -c "import toml; toml.load('config.toml'); print('配置文件语法正确')"
+
+# 使用在线工具
+# https://www.toml-lint.com/
 ```
 
-### 安全配置
+### 2. 配置测试
 
-```toml
-[security]
-allowed_ips = ["127.0.0.1", "::1"]
-api_key = "your-api-key"  # 可选
-require_https = false
-```
-
-### 速率限制
-
-```toml
-[rate_limiting]
-enabled = false
-max_requests_per_minute = 60
-max_requests_per_hour = 1000
-max_requests_per_day = 10000
-
-[rate_limiting.backends]
-email = 10
-webhook = 100
-slack = 50
-macos = 200
-```
-
-## 使用方法
-
-### 1. 创建配置文件
-
-在项目根目录创建 `config.toml` 文件，并根据需要配置各个后端。
-
-### 2. 启动服务器
+启动服务器时会自动验证配置：
 
 ```bash
 node start.js
 ```
 
-服务器启动时会自动加载配置文件，并显示配置摘要。
+看到以下输出表示配置正确：
+```
+✅ 配置文件加载成功
+✅ Notice MCP Server 已启动，等待连接...
+📋 可用工具: send_notification, get_backends
+```
 
-### 3. 发送通知
+## 🚨 常见问题
 
-通知发送时会自动使用配置文件中的设置。如果在发送时提供了额外配置，会与配置文件中的设置合并（发送时的配置优先）。
+### 1. 配置文件不存在
 
-### 4. 环境变量支持
+**错误：** `配置文件 config.toml 不存在`
 
-敏感信息（如密码、令牌）可以通过环境变量设置：
-
+**解决：**
 ```bash
-export EMAIL_USER="your-email@gmail.com"
-export EMAIL_PASS="your-app-password"
-export SLACK_TOKEN="xoxb-your-slack-bot-token"
-node start.js
+cp config.example.toml config.toml
 ```
 
-## 配置验证
+### 2. TOML 语法错误
 
-配置管理器会自动验证配置的有效性：
+**错误：** `TOML 解析错误`
 
-- 检查必需字段是否存在
-- 验证后端配置的完整性
-- 确保启用的后端有必要的配置
+**解决：**
+- 检查引号是否匹配
+- 确保键值对格式正确
+- 验证节名称格式
 
-## 测试配置
+### 3. 环境变量未设置
 
-可以使用测试脚本验证配置：
+**错误：** `环境变量 FEISHU_WEBHOOK_URL 未设置`
 
+**解决：**
 ```bash
-node test-config.js
+export FEISHU_WEBHOOK_URL="your-webhook-url"
 ```
 
-或运行完整的集成测试：
+### 4. 后端配置错误
 
-```bash
-npm test
-```
+**错误：** `飞书后端配置无效`
 
-## 配置热重载
+**解决：**
+- 检查 webhook_url 格式
+- 验证 secret 是否正确
+- 确保网络连接正常
 
-配置管理器支持热重载功能（需要手动调用）：
+## 🎯 最佳实践
 
-```javascript
-const { ConfigManager } = await import('./src/config/manager.js');
-const configManager = new ConfigManager();
-await configManager.reload();
-```
+1. **使用环境变量**：敏感信息（如密钥、密码）使用环境变量
+2. **备份配置**：定期备份配置文件
+3. **版本控制**：将 `config.example.toml` 加入版本控制，排除 `config.toml`
+4. **分环境配置**：开发、测试、生产使用不同配置
+5. **定期检查**：定期验证配置文件的有效性
 
-## 最佳实践
+## 📚 相关文档
 
-1. **敏感信息**: 使用环境变量存储密码、令牌等敏感信息
-2. **版本控制**: 将 `config.toml` 加入版本控制，但创建 `config.local.toml` 用于本地开发
-3. **备份**: 定期备份配置文件
-4. **验证**: 修改配置后运行测试确保配置有效
-5. **文档**: 为团队成员提供配置说明文档
-
-## 故障排除
-
-### 配置文件不存在
-
-如果 `config.toml` 不存在，服务器会使用默认配置并显示警告。
-
-### 配置解析错误
-
-检查 TOML 语法是否正确，特别注意：
-- 字符串需要用引号包围
-- 数组元素用逗号分隔
-- 节名用方括号包围
-
-### 后端配置无效
-
-运行配置验证检查具体错误：
-
-```bash
-node test-config.js
-```
-
-### 环境变量未生效
-
-确保环境变量名称与 `[environment]` 节中的映射一致。
-
-## 示例配置文件
-
-完整的示例配置文件请参考项目根目录下的 `config.toml` 文件。
+- [TOML 官方规范](https://toml.io/)
+- [项目 README](../README.md)
+- [Trae AI 设置指南](./TRAE_SETUP.md)
+- [Claude Desktop 设置指南](./CLAUDE_DESKTOP_SETUP.md)
