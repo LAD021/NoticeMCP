@@ -156,5 +156,8 @@ config.toml
 config.local.toml
 .env.local
 
+# MCP settings (may contain local paths)
+mcp_settings/
+
 # macOS service files (generated dynamically)
 com.notice.mcp.plist

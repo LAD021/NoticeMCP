@@ -9,6 +9,7 @@ import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { log } from './src/utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,10 +23,8 @@ async function loadConfig() {
     const { ConfigManager } = await import('./src/config/manager.js');
     configManager = new ConfigManager();
     await configManager.loadConfig();
-    console.error('📋 配置文件已加载:', configManager.getConfigSummary());
     return configManager;
   } catch (error) {
-    console.error('⚠️  配置文件加载失败，使用默认配置:', error.message);
     return null;
   }
 }
@@ -34,31 +33,97 @@ async function loadConfig() {
 class SimpleMCPServer {
   constructor(configManager = null) {
     this.configManager = configManager;
+    this.startTime = new Date().toISOString(); // 记录服务器启动时间
+    
+    // 根据配置动态确定可用后端
+    const availableBackends = this.getAvailableBackends();
+    
+    // 基础工具
     this.tools = [
       {
         name: 'send_notification',
-        description: '发送通知消息到指定后端',
+        description: '发送通知消息到所有启用的后端',
         inputSchema: {
           type: 'object',
           properties: {
             title: { type: 'string', description: '通知标题' },
             message: { type: 'string', description: '通知内容' },
-            backend: { type: 'string', enum: ['email', 'webhook', 'slack', 'macos'], description: '通知后端类型' },
-            config: { type: 'object', description: '后端特定配置' }
+            config: { type: 'object', description: '后端特定配置（可选）' }
           },
-          required: ['title', 'message', 'backend']
-        }
-      },
-      {
-        name: 'get_backends',
-        description: '获取所有可用的通知后端',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false
+          required: ['title', 'message']
         }
       }
     ];
+    
+    // 在调试模式下添加调试工具
+    const debugMode = this.isDebugMode();
+    console.log(`[DEBUG] Debug mode: ${debugMode}`);
+    if (debugMode) {
+      console.log('[DEBUG] Adding get_server_info tool');
+      this.tools.push({
+        name: 'get_server_info',
+        description: '获取服务器启动信息（仅调试模式）',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: []
+        }
+      });
+    }
+    console.log(`[DEBUG] Total tools: ${this.tools.length}`);
+    console.log(`[DEBUG] Tool names: ${this.tools.map(t => t.name).join(', ')}`);
+  }
+  
+  // 检测是否为调试模式
+  isDebugMode() {
+    // 检查环境变量或配置文件中的调试设置
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
+      return true;
+    }
+    
+    // 检查配置文件中的调试设置
+    if (this.configManager) {
+      const config = this.configManager.getConfig();
+      return config.server?.debug === true;
+    }
+    
+    return false;
+  }
+  
+  getAvailableBackends() {
+    console.log(`[DEBUG] getAvailableBackends called, configManager:`, !!this.configManager);
+    if (!this.configManager) {
+      console.log(`[DEBUG] No configManager, returning default backends`);
+      return ['macos', 'feishu'];
+    }
+    
+    const backends = [];
+    const config = this.configManager.getConfig();
+    console.log(`[DEBUG] Full config:`, JSON.stringify(config, null, 2));
+    
+    if (config.backends) {
+      console.log(`[DEBUG] Backends config:`, JSON.stringify(config.backends, null, 2));
+      if (config.backends.email && config.backends.email.enabled) {
+        backends.push('email');
+      }
+      if (config.backends.webhook && config.backends.webhook.enabled) {
+        backends.push('webhook');
+      }
+      if (config.backends.slack && config.backends.slack.enabled) {
+        backends.push('slack');
+      }
+      if (config.backends.macos && config.backends.macos.enabled) {
+        console.log(`[DEBUG] macOS backend enabled`);
+        backends.push('macos');
+      }
+      if (config.backends.feishu && config.backends.feishu.enabled) {
+        console.log(`[DEBUG] Feishu backend enabled`);
+        backends.push('feishu');
+      }
+    }
+    
+    console.log(`[DEBUG] Final backends list:`, backends);
+    return backends.length > 0 ? backends : ['macos', 'feishu'];
   }
 
   async handleRequest(request) {
@@ -97,86 +162,189 @@ class SimpleMCPServer {
       case 'send_notification':
         return await this.sendNotification(args);
       
-      case 'get_backends':
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              backends: ['email', 'webhook', 'slack', 'macos'],
-              count: 4,
-              descriptions: {
-                email: '邮件通知后端 - 通过SMTP发送邮件',
-                webhook: 'Webhook通知后端 - 发送HTTP请求到指定URL',
-                slack: 'Slack通知后端 - 通过Webhook发送Slack消息',
-                macos: 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知'
-              }
-            }, null, 2)
-          }]
-        };
+      case 'get_server_info':
+        return await this.getServerInfo(args);
 
       default:
         throw new Error(`未知工具: ${name}`);
     }
   }
+  
+  async getServerInfo(args) {
+    const uptime = Date.now() - new Date(this.startTime).getTime();
+    const uptimeSeconds = Math.floor(uptime / 1000);
+    const uptimeMinutes = Math.floor(uptimeSeconds / 60);
+    const uptimeHours = Math.floor(uptimeMinutes / 60);
+    
+    const formatUptime = () => {
+      if (uptimeHours > 0) {
+        return `${uptimeHours}小时${uptimeMinutes % 60}分钟${uptimeSeconds % 60}秒`;
+      } else if (uptimeMinutes > 0) {
+        return `${uptimeMinutes}分钟${uptimeSeconds % 60}秒`;
+      } else {
+        return `${uptimeSeconds}秒`;
+      }
+    };
+    
+    const serverInfo = {
+      startTime: this.startTime,
+      uptime: formatUptime(),
+      uptimeMs: uptime,
+      debugMode: this.isDebugMode(),
+      availableBackends: this.getAvailableBackends(),
+      nodeEnv: process.env.NODE_ENV || 'unknown',
+      pid: process.pid,
+      memoryUsage: process.memoryUsage(),
+      timestamp: new Date().toISOString()
+    };
+    
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: true,
+          message: '服务器信息获取成功',
+          data: serverInfo
+        }, null, 2)
+      }]
+    };
+  }
 
   async sendNotification(args) {
-    const { title, message, backend, config = {} } = args;
+    log.mcp.info('SendNotification method called', {
+      args,
+      configManagerExists: !!this.configManager,
+      pid: process.pid
+    });
+    const { title, message, config = {} } = args;
     
-    // 合并配置文件中的配置
-    let finalConfig = { ...config };
-    if (this.configManager) {
-      const backendConfig = this.configManager.getBackendConfig(backend);
-      if (backendConfig) {
-        finalConfig = { ...backendConfig, ...config };
-      }
-    }
+    const results = [];
+    const errors = [];
     
-    try {
-      let result;
-      
-      switch (backend) {
-        case 'email':
-          result = await this.sendEmail(title, message, finalConfig);
-          break;
-        case 'webhook':
-          result = await this.sendWebhook(title, message, finalConfig);
-          break;
-        case 'slack':
-          result = await this.sendSlack(title, message, finalConfig);
-          break;
-        case 'macos':
-          result = await this.sendMacOS(title, message, finalConfig);
-          break;
-        default:
-          throw new Error(`不支持的后端: ${backend}`);
-      }
+    // 获取所有启用的后端
+    const availableBackends = this.getAvailableBackends();
+    log.mcp.debug('Available backends', { backends: availableBackends });
+    
+    // 使用Promise.allSettled确保所有后端都被处理
+    const backendPromises = availableBackends.map(async (backend) => {
+      try {
+        log.mcp.debug('Processing backend', { backend });
+        // 合并配置文件中的配置
+        let finalConfig = { ...config };
+        if (this.configManager) {
+          const backendConfig = this.configManager.getBackendConfig(backend);
+          log.mcp.debug('Backend config', { backend, config: backendConfig });
+          if (backendConfig) {
+            finalConfig = { ...backendConfig, ...config };
+          }
+        }
+        log.mcp.debug('Final config', { backend, config: finalConfig });
+        
+        let result;
+        
+        log.mcp.info('Processing backend', { backend: backend.toUpperCase() });
+        
+        switch (backend) {
+          case 'email':
+            log.mcp.debug('Calling sendEmail', { backend });
+            result = await this.sendEmail(title, message, finalConfig);
+            break;
+          case 'webhook':
+            log.mcp.debug('Calling sendWebhook', { backend });
+            result = await this.sendWebhook(title, message, finalConfig);
+            break;
+          case 'slack':
+            log.mcp.debug('Calling sendSlack', { backend });
+            result = await this.sendSlack(title, message, finalConfig);
+            break;
+          case 'macos':
+            log.mcp.debug('Calling sendMacOS', { backend });
+            result = await this.sendMacOS(title, message, finalConfig);
+            break;
+          case 'feishu':
+            log.mcp.debug('Calling sendFeishu', { backend });
+            result = await this.sendFeishu(title, message, finalConfig);
+            log.mcp.debug('sendFeishu returned', { backend, result });
+            break;
+          default:
+            throw new Error(`不支持的后端: ${backend}`);
+        }
 
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            message: '通知发送成功',
-            backend,
-            timestamp: new Date().toISOString(),
-            ...result
-          }, null, 2)
-        }]
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            success: false,
-            error: error.message,
-            backend,
-            timestamp: new Date().toISOString()
-          }, null, 2)
-        }],
-        isError: true
-      };
-    }
+        log.mcp.info('Backend result', { backend: backend.toUpperCase(), result });
+        
+        const backendResult = {
+          backend,
+          success: true,
+          ...result
+        };
+        
+        log.mcp.debug('Adding backend to results', { backend, result: backendResult });
+        return { type: 'success', result: backendResult };
+        
+      } catch (error) {
+        log.mcp.error('Backend failed', { backend, error: error.message, stack: error.stack });
+        const errorResult = {
+          backend,
+          success: false,
+          error: error.message
+        };
+        log.mcp.debug('Adding backend to errors', { backend, result: errorResult });
+        return { type: 'error', result: errorResult };
+      }
+    });
+    
+    // 等待所有后端处理完成
+    log.mcp.debug('Waiting for backends to complete', { count: availableBackends.length });
+    const settledResults = await Promise.allSettled(backendPromises);
+    
+    // 处理结果
+    settledResults.forEach((settled, index) => {
+      const backend = availableBackends[index];
+      if (settled.status === 'fulfilled') {
+        const { type, result } = settled.value;
+        if (type === 'success') {
+          results.push(result);
+        } else {
+          errors.push(result);
+        }
+      } else {
+        log.mcp.error('Promise rejected for backend', { backend, reason: settled.reason });
+        errors.push({
+          backend,
+          success: false,
+          error: settled.reason?.message || 'Promise rejected'
+        });
+      }
+    });
+    
+    const hasSuccess = results.length > 0;
+    const hasErrors = errors.length > 0;
+    
+    const response = {
+      success: hasSuccess,
+      message: hasSuccess ? 
+        (hasErrors ? `部分通知发送成功 (${results.length}/${results.length + errors.length})` : '所有通知发送成功') :
+        '所有通知发送失败',
+      timestamp: new Date().toISOString(),
+      results,
+      errors: errors.length > 0 ? errors : undefined
+    };
+
+    log.mcp.info('Final response summary', {
+      totalBackends: availableBackends.length,
+      successfulResults: results.length,
+      failedResults: errors.length,
+      results,
+      errors,
+      response
+    });
+    
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(response, null, 2)
+      }]
+    };
   }
 
   async sendEmail(title, message, config) {
@@ -347,6 +515,107 @@ class SimpleMCPServer {
       throw new Error(`MacOS通知发送失败: ${error.message}`);
     }
   }
+
+  async sendFeishu(title, message, config = {}) {
+    try {
+      log.debug('Starting Feishu send', { title, message, config });
+      
+      const webhookUrl = config.webhook_url || config.webhookUrl;
+      log.debug('Extracted webhook URL', { webhookUrl });
+      if (!webhookUrl) {
+        log.error('Invalid Feishu config: webhook_url required');
+        throw new Error('飞书配置无效，需要提供 webhook_url');
+      }
+
+      // 构建飞书消息格式
+      let text = `**${title}**\n\n${message}`;
+      
+      // 添加 @ 功能
+      if (config.atAll) {
+        text += '\n\n<at user_id="all">所有人</at>';
+      }
+      
+      if (config.atUsers && config.atUsers.length > 0) {
+        config.atUsers.forEach(userId => {
+          text += `\n<at user_id="${userId}">@${userId}</at>`;
+        });
+      }
+      
+      if (config.atMobiles && config.atMobiles.length > 0) {
+        config.atMobiles.forEach(mobile => {
+          text += `\n<at user_id="${mobile}">@${mobile}</at>`;
+        });
+      }
+
+      const payload = {
+        msg_type: 'text',
+        content: {
+          text: text
+        }
+      };
+
+      // 如果有签名密钥，添加签名
+      if (config.secret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const crypto = await import('crypto');
+        const stringToSign = `${timestamp}\n${config.secret}`;
+        const hmac = crypto.createHmac('sha256', config.secret);
+        hmac.update(stringToSign);
+        const sign = hmac.digest('base64');
+        
+        payload.timestamp = timestamp.toString();
+        payload.sign = sign;
+        console.error(`[FEISHU] 添加签名: timestamp=${timestamp}, sign=${sign}`);
+      }
+
+      log.info('Sending to Feishu', { webhookUrl, title, message, payload });
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'notice-mcp/1.0.0'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      log.debug('Feishu response status', { status: response.status, statusText: response.statusText });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        log.error('Feishu API error response', { status: response.status, statusText: response.statusText, errorText });
+        throw new Error(`飞书API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      log.debug('Feishu response result', { result });
+      
+      if (result.code !== 0) {
+        log.error('Feishu returned error code', { code: result.code, message: result.msg });
+        throw new Error(`飞书消息发送失败: ${result.msg || '未知错误'}`);
+      }
+
+      const returnValue = {
+        messageId: `feishu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        webhookUrl: webhookUrl,
+        hasSecret: !!config.secret,
+        atAll: config.atAll,
+        atUsersCount: config.atUsers?.length || 0,
+        atMobilesCount: config.atMobiles?.length || 0,
+        feishuResponse: result
+      };
+      
+      log.info('Feishu send success', { returnValue });
+       
+       return returnValue;
+     } catch (error) {
+       log.error('Feishu send failed', { error: error.message, stack: error.stack });
+      
+      throw new Error(`飞书通知发送失败: ${error.message}`);
+    }
+  }
+
+
 }
 
 // STDIO MCP 协议处理
@@ -411,22 +680,30 @@ class StdioMCPTransport {
 
 // 启动服务器
 async function startServer() {
-  console.error('🚀 Notice MCP Server 启动中...');
+  console.log('🚀 Notice MCP Server 启动中...');
   
   // 加载配置
   const config = await loadConfig();
   
-  const server = new SimpleMCPServer(config);
+  console.log('[DEBUG] Creating SimpleMCPServer instance...');
+  const server = new SimpleMCPServer(configManager);
+  console.log(`[DEBUG] Server created with ${server.tools.length} tools`);
   const transport = new StdioMCPTransport(server);
   
-  console.error('✅ Notice MCP Server 已启动，等待连接...');
-  console.error('📋 可用工具: send_notification, get_backends');
-  console.error('🔧 支持后端: email, webhook, slack, macos');
+  console.log('✅ Notice MCP Server 已启动，等待连接...');
+  console.log(`📋 可用工具: ${server.tools.map(t => t.name).join(', ')}`);
+  
+  if (server.isDebugMode()) {
+    console.log('🐛 调试模式已启用');
+  }
+  
+  const availableBackends = server.getAvailableBackends();
+  console.log(`🔧 支持后端: ${availableBackends.join(', ')}`);
   
   if (config) {
-    console.error('⚙️  使用TOML配置文件');
+    console.log('⚙️  使用TOML配置文件');
   } else {
-    console.error('⚙️  使用默认配置');
+    console.log('⚙️  使用默认配置');
   }
 }
 

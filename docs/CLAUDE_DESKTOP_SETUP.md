@@ -26,7 +26,7 @@
     "notice-mcp": {
       "command": "node",
       "args": [
-        "/Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js"
+        "/path/to/your/NoticeMCP/start.js"
       ],
       "env": {
         "NODE_ENV": "production"
@@ -36,7 +36,7 @@
 }
 ```
 
-**重要:** 请将 `/Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js` 替换为您的实际项目路径。
+**重要:** 请将 `/path/to/your/NoticeMCP/start.js` 替换为您的实际项目路径。
 
 ### 3. 重启 Claude Desktop
 
@@ -125,7 +125,7 @@
     "notice-mcp": {
       "command": "node",
       "args": [
-        "/Users/your-username/projects/NoticeMCP/start.js"
+        "/path/to/your/NoticeMCP/start.js"
       ],
       "env": {
         "NODE_ENV": "production",

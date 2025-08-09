@@ -4,18 +4,20 @@
 
 > 🤖 **专为 AI 助手设计**：详细了解如何让 AI 助手使用此工具，请参阅 [AI 助手使用指南](./AI_ASSISTANT_GUIDE.md)
 
-## 📦 当前版本：v0.2.0
+## 📦 当前版本：v0.3.0
 
-**v0.2.0 特性：**
+**v0.3.0 特性：**
 - ✅ 完整的 macOS 系统通知支持
+- ✅ 完整的飞书通知支持（新增）
 - ✅ 稳定的 MCP 协议连接
 - ✅ TOML 配置文件管理
 - ✅ 完善的错误处理和状态反馈
-- 📋 详细的 macOS 通知系统限制说明
+- ✅ 多后端同时发送通知能力
+- 📋 详细的通知系统配置说明
 
 ## 功能特性
 
-- 🚀 支持多种通知后端（邮件、Webhook、Slack、MacOS系统通知）
+- 🚀 支持多种通知后端（邮件、Webhook、Slack、MacOS系统通知、飞书通知）
 - 📋 TOML配置文件管理，支持环境变量映射
 - 🔧 可扩展的后端架构
 - 📝 完整的TypeScript类型支持
@@ -33,7 +35,14 @@
   - 支持 timeout 参数（受系统设置限制）
   - 完整的错误处理和状态反馈
 
-### v0.2.0 开发计划
+- ✅ **飞书通知**：已完全实现并测试（v0.3.0 新增）
+  - 支持文本消息、富文本消息和卡片消息
+  - 支持 @所有人、@指定用户、@手机号
+  - 支持签名校验确保安全性
+  - 完整的错误处理和状态反馈
+  - 支持多群聊机器人配置
+
+### v0.4.0 开发计划
 
 - 🚧 **Windows 系统通知**：下一版本重点
   - 使用 Windows Toast 通知
@@ -81,6 +90,14 @@
 - 支持标题、副标题和系统声音
 - 无需额外配置，直接使用系统通知中心
 - **注意**：通知持久性受macOS系统设置限制（详见下方说明）
+
+### 5. 飞书通知 ✅ 已实现
+- 通过飞书机器人Webhook发送消息到飞书群聊
+- 支持文本消息、富文本消息和卡片消息
+- 支持 @所有人、@指定用户（open_id）、@手机号
+- 支持签名校验确保消息安全性
+- 可配置多个群聊机器人（主群、开发群、测试群等）
+- 完整的错误处理和发送状态反馈
 
 ## 配置管理
 
@@ -177,7 +194,7 @@ npm run dev
 **参数：**
 - `title` (string): 通知标题
 - `message` (string): 通知内容
-- `backend` (string): 后端类型 (`email` | `webhook` | `slack` | `macos`)
+- `backend` (string): 后端类型 (`email` | `webhook` | `slack` | `macos` | `feishu`)
 - `config` (object, 可选): 后端特定配置
 
 **示例：**
@@ -258,6 +275,32 @@ npm run dev
 - `Basso`, `Blow`, `Bottle`, `Frog`, `Funk`
 - `Glass`, `Hero`, `Morse`, `Ping`, `Pop`
 - `Purr`, `Sosumi`, `Submarine`, `Tink`
+
+### 飞书通知配置
+
+```json
+{
+  "webhookUrl": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN",
+  "secret": "your-bot-secret",
+  "atAll": false,
+  "atUsers": ["ou_xxx", "ou_yyy"],
+  "atMobiles": ["+8613800138000"]
+}
+```
+
+**飞书通知示例：**
+
+```json
+{
+  "title": "AI任务完成",
+  "message": "您的数据分析任务已完成，请查看结果",
+  "backend": "feishu",
+  "config": {
+    "webhookUrl": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN",
+    "atUsers": ["ou_xxx"]
+  }
+}
+```
 
 **MacOS通知示例：**
 
@@ -358,6 +401,42 @@ this.notificationManager.registerBackend('custom', new CustomBackend());
   }
 }
 ```
+
+## 在Trae AI中使用
+
+要在 Trae AI 中使用此 MCP 服务器，请将以下配置添加到您的 Trae 配置文件中：
+
+**配置文件位置：**
+- **macOS**: `~/Library/Application Support/Trae/trae_config.json`
+- **Windows**: `%APPDATA%\Trae\trae_config.json`
+
+**配置内容：**
+```json
+{
+  "mcpServers": {
+    "notice-mcp": {
+      "command": "node",
+      "args": [
+        "/path/to/your/NoticeMCP/start.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+```
+
+**重要提示：** 请将 `/path/to/your/NoticeMCP/start.js` 替换为您的实际项目路径。
+
+**使用示例：**
+配置完成后，您可以在 Trae AI 中使用以下方式发送通知：
+
+- "发送一个MacOS通知，标题是'任务完成'，内容是'代码编译成功'"
+- "发送邮件通知给admin@company.com，主题'系统警告'，内容'服务器负载过高'"
+- "发送Slack消息到#general频道：'部署完成'"
+
+详细配置指南请参考：[Trae AI 配置指南](./docs/TRAE_SETUP.md)
 
 ## 使用场景
 

@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "notice-mcp": {
+      "command": "node",
+      "args": ["/path/to/your/NoticeMCP/src/index.ts"],
+      "env": {
+        "CONFIG_PATH": "/path/to/your/NoticeMCP/config.toml"
+      }
+    }
+  },
+  "description": "Trae AI configuration example for NoticeMCP",
+  "notes": [
+    "Replace the path in 'args' with your actual NoticeMCP installation path",
+    "Make sure to update CONFIG_PATH to point to your config.toml file",
+    "Ensure Node.js and TypeScript are properly installed",
+    "The server name 'notice-mcp' can be customized as needed"
+  ]
+}

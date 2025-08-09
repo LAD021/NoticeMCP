@@ -42,6 +42,15 @@ function validateEnum(value: any, options: string[], name: string): string {
   return str;
 }
 
+// 飞书配置接口
+interface FeishuConfig {
+  webhookUrl: string;
+  secret?: string;
+  atAll?: boolean;
+  atUsers?: string[];
+  atMobiles?: string[];
+}
+
 // 通知结果接口
 interface NotificationResult {
   success: boolean;
@@ -97,20 +106,33 @@ class EmailBackend implements NotificationBackend {
 
 // Webhook后端实现
 class WebhookBackend implements NotificationBackend {
+  private defaultConfig = {
+    url: 'https://your-webhook-endpoint.com/notify',
+    method: 'POST',
+    timeout: 5000,
+    headers: {} as Record<string, string>
+  };
+
   getDescription(): string {
     return 'Webhook通知后端 - 通过HTTP请求发送通知到指定URL';
   }
 
   getRequiredConfig(): string[] {
-    return ['url'];
+    return []; // 不再强制要求URL，可以使用默认配置
   }
 
   validateConfig(config: Record<string, any>): boolean {
-    return !!(config.url && typeof config.url === 'string' && config.url.startsWith('http'));
+    const url = config.url || this.defaultConfig.url;
+    return !!(url && typeof url === 'string' && url.startsWith('http'));
   }
 
   async send(title: string, message: string, config?: Record<string, any>): Promise<Partial<NotificationResult>> {
-    if (!config || !this.validateConfig(config)) {
+    const finalConfig = {
+      ...this.defaultConfig,
+      ...config
+    };
+
+    if (!this.validateConfig(finalConfig)) {
       throw new Error('Webhook配置无效，需要提供有效的URL');
     }
 
@@ -122,21 +144,21 @@ class WebhookBackend implements NotificationBackend {
     };
 
     const requestOptions: RequestInit = {
-      method: config.method || 'POST',
+      method: finalConfig.method || 'POST',
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'notice-mcp/1.0.0',
-        ...config.headers
+        ...finalConfig.headers
       },
       body: JSON.stringify(payload)
     };
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.timeout || 10000);
+    const timeoutId = setTimeout(() => controller.abort(), finalConfig.timeout || 10000);
     requestOptions.signal = controller.signal;
 
     try {
-      const response = await fetch(config.url, requestOptions);
+      const response = await fetch(finalConfig.url, requestOptions);
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -144,14 +166,15 @@ class WebhookBackend implements NotificationBackend {
       }
 
       const responseText = await response.text();
-      console.error(`[WEBHOOK] 发送到: ${config.url}`);
+      console.error(`[WEBHOOK] 发送到: ${finalConfig.url}`);
       console.error(`[WEBHOOK] 状态: ${response.status}`);
+      console.error(`[WEBHOOK] 响应: ${responseText.substring(0, 100)}`);
 
       return {
         messageId: `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         metadata: {
-          url: config.url,
-          method: config.method || 'POST',
+          url: finalConfig.url,
+          method: finalConfig.method || 'POST',
           statusCode: response.status,
           response: responseText.substring(0, 200)
         }
@@ -159,7 +182,7 @@ class WebhookBackend implements NotificationBackend {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
-        throw new Error(`Webhook请求超时: ${config.url}`);
+        throw new Error(`Webhook请求超时: ${finalConfig.url}`);
       }
       throw new Error(`Webhook发送失败: ${error.message}`);
     }
@@ -277,6 +300,129 @@ class MacOSBackend implements NotificationBackend {
   }
 }
 
+// 飞书通知后端
+class FeishuBackend implements NotificationBackend {
+  private defaultConfig = {
+    webhookUrl: 'https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_TOKEN'
+  };
+
+  getDescription(): string {
+    return '飞书通知后端 - 通过飞书机器人Webhook发送消息到飞书群聊';
+  }
+
+  getRequiredConfig(): string[] {
+    return []; // 不再强制要求webhookUrl，可以使用默认配置
+  }
+
+  validateConfig(config: Record<string, any>): boolean {
+    const webhookUrl = config.webhookUrl || this.defaultConfig.webhookUrl;
+    return !!(
+      webhookUrl &&
+      typeof webhookUrl === 'string' &&
+      webhookUrl.includes('open.feishu.cn')
+    );
+  }
+
+  async send(title: string, message: string, config?: Record<string, any>): Promise<Partial<NotificationResult>> {
+    const finalConfig = {
+      ...this.defaultConfig,
+      ...config
+    };
+
+    if (!this.validateConfig(finalConfig)) {
+      throw new Error('飞书配置无效，需要提供有效的webhookUrl');
+    }
+
+    const feishuConfig = finalConfig as FeishuConfig;
+    
+    try {
+      const payload = this.createFeishuPayload(title, message, feishuConfig);
+      
+      // 如果配置了签名密钥，添加签名
+      if (feishuConfig.secret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const sign = await this.generateSign(timestamp, feishuConfig.secret);
+        payload.timestamp = timestamp.toString();
+        payload.sign = sign;
+      }
+
+      const response = await fetch(feishuConfig.webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'notice-mcp/1.0.0'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`飞书API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        throw new Error(`飞书消息发送失败: ${result.msg || '未知错误'}`);
+      }
+
+      console.error(`[FEISHU] 发送到飞书群聊`);
+      console.error(`[FEISHU] 标题: ${title}`);
+      console.error(`[FEISHU] 内容: ${message}`);
+
+      return {
+        messageId: `feishu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        metadata: {
+          webhookUrl: feishuConfig.webhookUrl,
+          hasSecret: !!feishuConfig.secret,
+          atAll: feishuConfig.atAll,
+          atUsersCount: feishuConfig.atUsers?.length || 0,
+          atMobilesCount: feishuConfig.atMobiles?.length || 0
+        }
+      };
+    } catch (error: any) {
+      throw new Error(`飞书通知发送失败: ${error.message}`);
+    }
+  }
+
+  private createFeishuPayload(title: string, message: string, config: FeishuConfig): any {
+    let text = `**${title}**\n\n${message}`;
+
+    // 添加@功能
+    if (config.atAll) {
+      text += '\n\n<at user_id="all">所有人</at>';
+    }
+
+    if (config.atUsers && config.atUsers.length > 0) {
+      config.atUsers.forEach(userId => {
+        text += `\n<at user_id="${userId}"></at>`;
+      });
+    }
+
+    if (config.atMobiles && config.atMobiles.length > 0) {
+      config.atMobiles.forEach(mobile => {
+        text += `\n<at user_id="${mobile}"></at>`;
+      });
+    }
+
+    return {
+      msg_type: 'text',
+      content: {
+        text: text
+      }
+    };
+  }
+
+  private async generateSign(timestamp: number, secret: string): Promise<string> {
+    const stringToSign = `${timestamp}\n${secret}`;
+    
+    // 使用Node.js内置的crypto模块
+    const crypto = await import('crypto');
+    const hmac = crypto.createHmac('sha256', stringToSign);
+    return hmac.digest('base64');
+  }
+}
+
 class NotificationManager {
   private backends: Map<string, NotificationBackend> = new Map();
 
@@ -327,7 +473,7 @@ function validateSendNotification(args: any): {
 } {
   const title = validateString(args.title, 'title');
   const message = validateString(args.message, 'message');
-  const backend = validateEnum(args.backend, ['email', 'webhook', 'slack', 'macos'], 'backend');
+  const backend = validateEnum(args.backend, ['email', 'webhook', 'slack', 'macos', 'feishu'], 'backend');
   return { title, message, backend, config: args.config };
 }
 
@@ -365,6 +511,7 @@ class NoticeMCPServer {
     this.notificationManager.registerBackend('webhook', new WebhookBackend());
     this.notificationManager.registerBackend('slack', new SlackBackend());
     this.notificationManager.registerBackend('macos', new MacOSBackend());
+    this.notificationManager.registerBackend('feishu', new FeishuBackend());
   }
 
   private setupStdio() {
@@ -460,7 +607,7 @@ class NoticeMCPServer {
                   },
                   backend: {
                      type: 'string',
-                     enum: ['email', 'webhook', 'slack', 'macos'],
+                     enum: ['email', 'webhook', 'slack', 'macos', 'feishu'],
                      description: '通知后端类型'
                    },
                   config: {
@@ -532,7 +679,8 @@ class NoticeMCPServer {
                      email: '邮件通知后端 - 通过SMTP发送邮件',
                      webhook: 'Webhook通知后端 - 发送HTTP请求到指定URL',
                      slack: 'Slack通知后端 - 通过Webhook发送Slack消息',
-                     macos: 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知'
+                     macos: 'Mac系统通知后端 - 使用macOS原生通知系统发送桌面通知',
+                     feishu: '飞书通知后端 - 通过飞书机器人Webhook发送消息到飞书群聊'
                    }
                 }, null, 2)
               }
@@ -562,7 +710,8 @@ class NoticeMCPServer {
   run() {
     console.error('🚀 Notice MCP Server 已启动');
     console.error('📋 可用工具: send_notification, get_backends');
-    console.error('🔧 支持后端: email, webhook, slack');
+    const backends = this.notificationManager.getAvailableBackends();
+    console.error(`🔧 支持后端: ${backends.join(', ')}`);
   }
 }
 
@@ -572,4 +721,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   server.run();
 }
 
-export { NoticeMCPServer, NotificationManager, EmailBackend, WebhookBackend, SlackBackend, MacOSBackend };
+export { NoticeMCPServer, NotificationManager, EmailBackend, WebhookBackend, SlackBackend, MacOSBackend, FeishuBackend };

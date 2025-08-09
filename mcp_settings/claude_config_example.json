@@ -12,7 +12,7 @@
   "mcpServers": {
     "notice-mcp": {
       "command": "node",
-      "args": ["/Users/bbaa/WORK2025/mysmall/NoticeMCP/start.js"],
+      "args": ["/path/to/your/NoticeMCP/start.js"],
       "env": {
         "NODE_ENV": "production"
       }
@@ -25,21 +25,21 @@
     "using_test_server": {
       "notice-mcp": {
         "command": "node",
-        "args": ["/Users/bbaa/WORK2025/mysmall/NoticeMCP/test-server.js"]
+        "args": ["/path/to/your/NoticeMCP/test-server.js"]
       }
     },
     
     "using_typescript_directly": {
       "notice-mcp": {
         "command": "npx",
-        "args": ["tsx", "/Users/bbaa/WORK2025/mysmall/NoticeMCP/src/index.ts"]
+        "args": ["tsx", "/path/to/your/NoticeMCP/src/index.ts"]
       }
     },
     
     "using_compiled_version": {
       "notice-mcp": {
         "command": "node",
-        "args": ["/Users/bbaa/WORK2025/mysmall/NoticeMCP/dist/index.js"]
+        "args": ["/path/to/your/NoticeMCP/dist/index.js"]
       }
     }
   },
