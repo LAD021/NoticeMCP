@@ -119,9 +119,9 @@ class ConfigManager {
         const content = fs.readFileSync(this.configPath, 'utf-8');
         const userConfig = SimpleTomlParser.parse(content);
         this.config = this.mergeConfig(this.getDefaultConfig(), userConfig);
-        console.log(`📋 配置文件已从 ${this.configPath} 加载`);
+        console.error(`📋 配置文件已从 ${this.configPath} 加载`);
       } else {
-        console.log(`⚠️  配置文件 ${this.configPath} 不存在，使用默认配置`);
+        console.error(`⚠️  配置文件 ${this.configPath} 不存在，使用默认配置`);
       }
     } catch (error) {
       console.error(`❌ 配置文件加载失败: ${error.message}`);
@@ -194,8 +194,8 @@ class ConfigManager {
           }
         },
         feishu: {
-          enabled: true,
-          webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/fb198b0a-6794-48f5-a5d6-d1a746c8f0a4",
+          enabled: false,
+          webhook_url: "",
           secret: "",
           at_all: false,
           at_users: [],
