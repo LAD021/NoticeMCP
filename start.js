@@ -57,9 +57,9 @@ class SimpleMCPServer {
     
     // 在调试模式下添加调试工具
     const debugMode = this.isDebugMode();
-    console.log(`[DEBUG] Debug mode: ${debugMode}`);
+    console.error(`[DEBUG] Debug mode: ${debugMode}`);
     if (debugMode) {
-      console.log('[DEBUG] Adding get_server_info tool');
+      console.error('[DEBUG] Adding get_server_info tool');
       this.tools.push({
         name: 'get_server_info',
         description: '获取服务器启动信息（仅调试模式）',
@@ -70,8 +70,8 @@ class SimpleMCPServer {
         }
       });
     }
-    console.log(`[DEBUG] Total tools: ${this.tools.length}`);
-    console.log(`[DEBUG] Tool names: ${this.tools.map(t => t.name).join(', ')}`);
+    console.error(`[DEBUG] Total tools: ${this.tools.length}`);
+    console.error(`[DEBUG] Tool names: ${this.tools.map(t => t.name).join(', ')}`);
   }
   
   // 检测是否为调试模式
@@ -91,18 +91,18 @@ class SimpleMCPServer {
   }
   
   getAvailableBackends() {
-    console.log(`[DEBUG] getAvailableBackends called, configManager:`, !!this.configManager);
+    console.error(`[DEBUG] getAvailableBackends called, configManager:`, !!this.configManager);
     if (!this.configManager) {
-      console.log(`[DEBUG] No configManager, returning default backends`);
+      console.error(`[DEBUG] No configManager, returning default backends`);
       return ['macos', 'feishu'];
     }
     
     const backends = [];
     const config = this.configManager.getConfig();
-    console.log(`[DEBUG] Full config:`, JSON.stringify(config, null, 2));
+    console.error(`[DEBUG] Full config:`, JSON.stringify(config, null, 2));
     
     if (config.backends) {
-      console.log(`[DEBUG] Backends config:`, JSON.stringify(config.backends, null, 2));
+      console.error(`[DEBUG] Backends config:`, JSON.stringify(config.backends, null, 2));
       if (config.backends.email && config.backends.email.enabled) {
         backends.push('email');
       }
@@ -113,16 +113,16 @@ class SimpleMCPServer {
         backends.push('slack');
       }
       if (config.backends.macos && config.backends.macos.enabled) {
-        console.log(`[DEBUG] macOS backend enabled`);
+        console.error(`[DEBUG] macOS backend enabled`);
         backends.push('macos');
       }
       if (config.backends.feishu && config.backends.feishu.enabled) {
-        console.log(`[DEBUG] Feishu backend enabled`);
+        console.error(`[DEBUG] Feishu backend enabled`);
         backends.push('feishu');
       }
     }
     
-    console.log(`[DEBUG] Final backends list:`, backends);
+    console.error(`[DEBUG] Final backends list:`, backends);
     return backends.length > 0 ? backends : ['macos', 'feishu'];
   }
 
@@ -449,8 +449,8 @@ class SimpleMCPServer {
 
   async sendMacOS(title, message, config = {}) {
     try {
-      console.log('[DEBUG] sendMacOS config:', JSON.stringify(config, null, 2));
-      console.log('DEBUG: config.timeout:', config.timeout, 'type:', typeof config.timeout);
+      console.error('[DEBUG] sendMacOS config:', JSON.stringify(config, null, 2));
+      console.error('DEBUG: config.timeout:', config.timeout, 'type:', typeof config.timeout);
       
       // 动态导入 node-notifier
       let notifier;
@@ -470,8 +470,8 @@ class SimpleMCPServer {
         timeout: config.timeout !== undefined ? config.timeout : false // false 表示常驻通知
       };
       
-      console.log('[DEBUG] notificationOptions.timeout:', notificationOptions.timeout, 'type:', typeof notificationOptions.timeout);
-      console.log('[DEBUG] config.timeout:', config.timeout);
+      console.error('[DEBUG] notificationOptions.timeout:', notificationOptions.timeout, 'type:', typeof notificationOptions.timeout);
+      console.error('[DEBUG] config.timeout:', config.timeout);
       
       // 添加可选参数
       if (config.subtitle) {
@@ -490,7 +490,7 @@ class SimpleMCPServer {
         notificationOptions.open = config.open;
       }
       
-      console.log(`[MacOS通知] 发送通知:`, notificationOptions);
+      console.error(`[MacOS通知] 发送通知:`, notificationOptions);
       
       // 使用 Promise 包装 node-notifier 的回调
       await new Promise((resolve, reject) => {
@@ -498,7 +498,7 @@ class SimpleMCPServer {
           if (err) {
             reject(err);
           } else {
-            console.log(`[MacOS通知] 通知响应:`, response);
+            console.error(`[MacOS通知] 通知响应:`, response);
             resolve();
           }
         });
@@ -680,30 +680,30 @@ class StdioMCPTransport {
 
 // 启动服务器
 async function startServer() {
-  console.log('🚀 Notice MCP Server 启动中...');
+  console.error('🚀 Notice MCP Server 启动中...');
   
   // 加载配置
   const config = await loadConfig();
   
-  console.log('[DEBUG] Creating SimpleMCPServer instance...');
+  console.error('[DEBUG] Creating SimpleMCPServer instance...');
   const server = new SimpleMCPServer(configManager);
-  console.log(`[DEBUG] Server created with ${server.tools.length} tools`);
+  console.error(`[DEBUG] Server created with ${server.tools.length} tools`);
   const transport = new StdioMCPTransport(server);
   
-  console.log('✅ Notice MCP Server 已启动，等待连接...');
-  console.log(`📋 可用工具: ${server.tools.map(t => t.name).join(', ')}`);
+  console.error('✅ Notice MCP Server 已启动，等待连接...');
+  console.error(`📋 可用工具: ${server.tools.map(t => t.name).join(', ')}`);
   
   if (server.isDebugMode()) {
-    console.log('🐛 调试模式已启用');
+    console.error('🐛 调试模式已启用');
   }
   
   const availableBackends = server.getAvailableBackends();
-  console.log(`🔧 支持后端: ${availableBackends.join(', ')}`);
+  console.error(`🔧 支持后端: ${availableBackends.join(', ')}`);
   
   if (config) {
-    console.log('⚙️  使用TOML配置文件');
+    console.error('⚙️  使用TOML配置文件');
   } else {
-    console.log('⚙️  使用默认配置');
+    console.error('⚙️  使用默认配置');
   }
 }
 
